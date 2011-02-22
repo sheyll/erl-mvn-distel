@@ -1,4 +1,5 @@
 (require 'derl)
+(require 'cl)
 (provide 'erl-mvn)
 
 (defvar erl-mvn-erlang-executable  "erl"
@@ -7,15 +8,46 @@
 (defvar erl-mvn-maven-executable ""
   "The complete path to the maven executable.")
 
+(defvar erl-mvn-projects '()
+  "A list of recognized maven projects.")
+
+(defvar erl-mvn-node-name "herrmann"
+  "The nodename of the test node for maven and distel.")
+
+(defun erl-mvn-build-all(workspace-dir)
+  "Finds all maven project in workspace-dir, starts a single erl node and invokes maven in each project to compile upload module to the test node.\
+This enables distel to work. The emacs distel environment will automatically be connected to that test node."
+  (interactive "DWorkspace directory: ")
+  (erl-mvn-start-node erl-mvn-node-name)
+  (message "Searching for poms in: %s" workspace-dir)
+  (let ((ws-sub-dirs 
+         (remove-if-not (function file-directory-p) 
+                        (directory-files workspace-dir 'full-name "^[^.].+"))))
+    (mapcar (function erl-mvn-build-project)
+            ws-sub-dirs)))
+
+(defun erl-mvn-build-project(pom-file)
+  "If the pom file exists, invokes maven to compile and upload the code into the test node"
+  (interactive "fPOM file: ")
+  (if (file-exits-p pom-file)
+      (let ((artifact-id  (erl-mvn-artifact-id pom-file)))
+        (message "Building project %s" artifact-id))
+    (message "File not found ~s" pom-file)))
+
+
+(defun erl-mvn-compile-project(pom-file)
+  "Invokes maven to compile an erlang project defined by a pom file.")
+
+
 (defun erl-mvn-node-name-for-buffer()
   "Returns the name of an erlang node, for the maven project a file in a buffer belongs to."
   (let ((pom (erl-mvn-find-pom (buffer-file-name))))
     (message (concat "found pom: " pom))
     (concat "erl-mvn-" (erl-mvn-artifact-id pom) "-test-node")))
   
-(defun erl-mvn-start-node-for-buffer(&optional args)
+(defun erl-mvn-start-node-for-buffer()
   "If for the maven project, the file in to current buffer belongs to, no erlang test node is started, a new node will be started."
-  (interactive)  
+  (interactive)
   (erl-mvn-start-node (erl-mvn-node-name-for-buffer)))
 
 (defun erl-mvn-find-pom(fn)
