@@ -28,3 +28,12 @@ Ideensammlung erlymacs:
 
 - write simple erlang tool for development support
 --> simple access to shell
+
+
+----
+
+Konkrete TODOs:
+
+. nur ein erl-nodde starten
+. distel connection initialisieren
+. build info cachen
