@@ -76,16 +76,6 @@ This enables distel to work. The emacs distel environment will automatically be 
       (set (erl-mvn-make-include-path-symbol artifact-id) include-dirs)
       (set (erl-mvn-make-code-path-symbol artifact-id) code-paths))))
 
-(defun erl-mvn-make-code-path-symbol(artifact-id)
-  "Private function. Returns a symbol for the variable that contains the code path list\
-for the project identified by an artifact id."
-  (intern (concat "erl-mvn-project-" artifact-id "-code-paths")))
-
-(defun erl-mvn-make-include-path-symbol(artifact-id)
-  "Private function. Returns a symbol for the variable that contains the include path list\
-for the project identified by an artifact id."
-  (intern (concat "erl-mvn-project-" artifact-id "-include-dirs")))
-
 (defun erl-mvn-is-maven-erlang-project(pom-file)
   "Private function. Returns t if the pom-file exists and defines an erlang project."  
   (if (file-exists-p pom-file) 
@@ -143,13 +133,16 @@ for the project identified by an artifact id."
     (message (symbol-name node))
     (erpc node 'c 'c `(,fn))))
 
-
-(defun erl-mvn-get-erlang-compile-options (artifact-id)
+(defun erl-mvn-get-erlang-compile-options (file-name)
   "Private function. Returns a list of compiler arguments for compiling a source file of a\
-project identified by an artifact-id."
-  (let (artifact-id 
-  
+project identified by a file of that project."
+  (let* ((pom-file (erl-mvn-find-pom file-name))
+	 (
 
+;; ----------------------------------------------------------------------
+;; Common utility functions
+;; ----------------------------------------------------------------------
+  
 (defun erl-mvn-find-pom(fn)
   "Private function. Searches for a file called pom.xml in the parent directories of fn"
   (let ((fn (buffer-file-name)))
@@ -163,3 +156,13 @@ project identified by an artifact-id."
               (message "No pom.xml found")
               "")
           pom)))))
+
+(defun erl-mvn-make-code-path-symbol(artifact-id)
+  "Private function. Returns a symbol for the variable that contains the code path list\
+for the project identified by an artifact id."
+  (intern (concat "erl-mvn-project-" artifact-id "-code-paths")))
+
+(defun erl-mvn-make-include-path-symbol(artifact-id)
+  "Private function. Returns a symbol for the variable that contains the include path list\
+for the project identified by an artifact id."
+  (intern (concat "erl-mvn-project-" artifact-id "-include-dirs")))
