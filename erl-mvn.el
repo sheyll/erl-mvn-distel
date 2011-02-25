@@ -79,7 +79,7 @@ This enables distel to work. The emacs distel environment will automatically be 
         (save-selected-window          
           (select-window (or (get-buffer-window (current-buffer))
                              (display-buffer (current-buffer))))
-          (goto-char (point-max))
+          (goto-char (point-max))          
           (let ((start (point)))
             (call-process erl-mvn-maven-executable
                           nil ; infile
@@ -144,43 +144,91 @@ This enables distel to work. The emacs distel environment will automatically be 
   (let* ((fn (file-truename (buffer-file-name)))
          (pom-file (erl-mvn-find-pom fn))
 	 (artifact-id (erl-mvn-pom-lookup pom-file 'artifactId))
-         (node (erl-mvn-complete-node-distel erl-mvn-node-name)))
-    (message "Compiling %s from project %s" fn artifact-id)
-    (with-current-buffer "*erl-output*"
-      (kill-region (point-min) (point-max)))
-    (erpc node 'code 'add_paths 
-          (list (eval (erl-mvn-make-code-path-symbol artifact-id))))
-    (erl-rpc 
-     (lambda (result) 
-       (mcase result
+         (node (erl-mvn-complete-node-distel erl-mvn-node-name)))    
+    (let ((erl-popup-on-output-old erl-popup-on-output))
+      (setq erl-popup-on-output nil)
+;      (erpc node 'code 'add_paths 
+;            (list (eval (erl-mvn-make-code-path-symbol artifact-id))))
+      (message "Compiling %s from project %s" fn artifact-id)
+      (erl-rpc 
+       (lambda (result) 
+         (mcase result
+           
+           (['ok module warnings] 
+            (message "Successfully compiled module: %s." module)
+            (erl-mvn-show-compilation-results '() warnings))
+           
+           (['error errors warnings] 
+            (message "Compilation failed!")            
+            (erl-mvn-show-compilation-results errors warnings))
+           
+           (unexpected
+            (message "Unexpected message %s" unexpected))))
+       'nil
+       node 
+       'compile 'file (cons fn (list (erl-mvn-get-erlang-compile-options artifact-id))))
+      (setq erl-popup-on-output erl-popup-on-output-old))))
 
-         (['ok module] 
-          (message "Successfully compiled module: %s." module)
-         (with-current-buffer "*erl-output*"
-           (fundamental-mode)))
+(defun erl-mvn-show-compilation-results(errors warnings)
+  "Private function. Show a buffer with the compiler warnings."
+  (save-excursion
+    (with-current-buffer (get-buffer-create "*erl-mvn-compile-errors*")
+      (save-selected-window        
+        (select-window (or (get-buffer-window (current-buffer))
+                           (display-buffer (current-buffer)))))
+      (fundamental-mode)
+      (setq buffer-read-only nil)
+      (kill-region (point-min) (point-max))
+      (insert "Errors:\n=======\n")
+      (erl-mvn-format-compiler-errors errors)
+      (insert "\n\nWarnings:\n=========\n")
+      (erl-mvn-format-compiler-warnings warnings)
+      (compilation-mode))))
 
-         (['error reasons] 
-          (message "Compilation failed!")
-          (with-current-buffer "*erl-output*"            
-            (compilation-mode))
-          (erl-mvn-process-compilation-error reasons))
-         
-         (unexpected
-          (message "Unexpected message %s" unexpected))))
-     'nil
-     node 
-     'c 'c (cons fn (list (erl-mvn-get-erlang-compile-options artifact-id))))))
+(defun erl-mvn-format-compiler-errors(msgs)
+  "Private function that formats a list of compiler errors as returned by compile:file/2 and inserts them into the current buffer."
+  (mapcar 
+   (lambda(e) 
+     (mlet 
+         [file ([line type raw-msg])] e
+       (let  ((msg 
+               (mcase type                 
+                 ('erl_lint (mlet [p1 p2] raw-msg
+                              (format "%s %s" p1 p2)))
+                 ('erl_parse (mlet (p1 p2) raw-msg
+                               (format "%s %s" p1 p2)))
+                 (_ raw-msg))))
+         (insert (format "%s:%s ERROR %s\n" file line msg)))))
+   msgs))
+
+(defun erl-mvn-format-compiler-warnings(msgs)
+  "Private function that formats a list of compiler warnings as returned by compile:file/2 and inserts them into the current buffer."
+  (mapcar 
+   (lambda(file-e) 
+     (mlet [file issues] file-e
+       (mapcar 
+        (lambda(e)        
+          (mlet [line type raw-msg] e
+            (insert (format "%s:%s WARNING %s\n" file line raw-msg))))
+        issues)))
+   msgs))
 
 (defun erl-mvn-test-buffer()
   "Compile the buffer and runs eunit test with the module contained in the buffer"
   'todo)
+
+(defun erl-mvn-get-erlang-compile-options (artifact-id)
+  "Private function. Returns a list of compiler arguments for compiling a source file of a project identified by a maven project artifact-id."
+  (append '(debug_info return verbose export_all)
+          (mapcar (lambda(dir) (tuple 'i dir))
+                  (eval (erl-mvn-make-include-path-symbol artifact-id)))))
 
 (defun erl-mvn-test-function-under-point()
   "Compile the buffer and runs eunit test with the module contained in the buffer"
   'todo)
   
 ;; ----------------------------------------------------------------------
-;; Common utility functions
+;; utility functions
 ;; ----------------------------------------------------------------------
   
 (defun erl-mvn-find-pom(fn)
@@ -227,12 +275,6 @@ for the project identified by an artifact id."
     ; append the rest
     (setq lines (cons (eval `(string ,@(reverse current-line))) lines))
     (reverse lines)))
-
-(defun erl-mvn-get-erlang-compile-options (artifact-id)
-  "Private function. Returns a list of compiler arguments for compiling a source file of a project identified by a maven project artifact-id."
-  (append '(debug_info return report verbose export_all)
-          (mapcar (lambda(dir) (tuple 'i dir))
-                  (eval (erl-mvn-make-include-path-symbol artifact-id)))))
 
 ;; ----------------------------------------------------------------------
 ;;  Tests
