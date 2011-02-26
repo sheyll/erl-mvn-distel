@@ -18,6 +18,9 @@
 (defvar erl-mvn-node-name "erl-mvn-test-node"
   "The nodename of the test node for maven and distel.")
 
+(defvar erl-mvn-erlang-cookie 'secret_cookie
+  "The security cookie for the erlang node.")
+
 (defvar erl-mvn-erlang-mvn-packaging-types '("erlang-otp" "erlang-std")
   "The packaging types that identify a project as erlang project")
 
@@ -86,10 +89,10 @@ This enables distel to work. The emacs distel environment will automatically be 
                           "*maven-output*"   ; current buffer
                           't   ; redisplay
                           "-f" pom
-                          "-DshutdownTestNode=false"
-                          (concat "-DtestNode=" 
+                          (concat "-Dremote=" 
                                   (erl-mvn-complete-node erl-mvn-node-name))
                           "erlang:show-build-info"
+			  "erlang:upload"
                           "test-compile")
             (setq buffer-read-only 't)
             (erl-mvn-to-lines (buffer-substring-no-properties start (point-max))))))))
@@ -111,7 +114,8 @@ This enables distel to work. The emacs distel environment will automatically be 
       (message (concat "Starting node name: " node-name))            
       (start-process node-name node-name 
 		     erl-mvn-erlang-executable
-		     "-sname" (erl-mvn-complete-node node-name))     
+		     "-name" (erl-mvn-complete-node node-name)
+		     "-setcookie" (symbol-name erl-mvn-erlang-cookie))
       (sleep-for 5)
       (erl-mvn-distel-connect-node node-name))))
 
@@ -131,6 +135,7 @@ This enables distel to work. The emacs distel environment will automatically be 
   "Private function."     
   (let ((n (erl-mvn-complete-node-distel node-name)))
     (setq erl-nodename-cache n)
+    (setq derl-cookie erl-mvn-erlang-cookie)
     (erl-ping n)))
 
 ;; ----------------------------------------------------------------------
@@ -147,8 +152,8 @@ This enables distel to work. The emacs distel environment will automatically be 
          (node (erl-mvn-complete-node-distel erl-mvn-node-name)))    
     (let ((erl-popup-on-output-old erl-popup-on-output))
       (setq erl-popup-on-output nil)
-;      (erpc node 'code 'add_paths 
-;            (list (eval (erl-mvn-make-code-path-symbol artifact-id))))
+      (erpc node 'code 'add_paths 
+            (list (eval (erl-mvn-make-code-path-symbol artifact-id))))
       (message "Compiling %s from project %s" fn artifact-id)
       (erl-rpc 
        (lambda (result) 
@@ -171,34 +176,37 @@ This enables distel to work. The emacs distel environment will automatically be 
 
 (defun erl-mvn-show-compilation-results(errors warnings)
   "Private function. Show a buffer with the compiler warnings."
-  (save-excursion
-    (with-current-buffer (get-buffer-create "*erl-mvn-compile-errors*")
-      (save-selected-window        
-        (select-window (or (get-buffer-window (current-buffer))
-                           (display-buffer (current-buffer)))))
-      (fundamental-mode)
-      (setq buffer-read-only nil)
-      (kill-region (point-min) (point-max))
-      (insert "Errors:\n=======\n")
-      (erl-mvn-format-compiler-errors errors)
-      (insert "\n\nWarnings:\n=========\n")
-      (erl-mvn-format-compiler-warnings warnings)
-      (compilation-mode))))
+  (if (not (and (eq errors '()) (eq warnings '())))
+      (save-excursion
+	(with-current-buffer (get-buffer-create "*erl-mvn-compile-errors*")
+	  (save-selected-window        
+	    (select-window (or (get-buffer-window (current-buffer))
+			       (display-buffer (current-buffer)))))
+	  (fundamental-mode)
+	  (setq buffer-read-only nil)
+	  (kill-region (point-min) (point-max))
+	  (insert "Errors:\n=======\n")
+	  (erl-mvn-format-compiler-errors errors)
+	  (insert "\n\nWarnings:\n=========\n")
+	  (erl-mvn-format-compiler-warnings warnings)
+	  (compilation-mode)))))
 
 (defun erl-mvn-format-compiler-errors(msgs)
   "Private function that formats a list of compiler errors as returned by compile:file/2 and inserts them into the current buffer."
   (mapcar 
-   (lambda(e) 
-     (mlet 
-         [file ([line type raw-msg])] e
-       (let  ((msg 
-               (mcase type                 
-                 ('erl_lint (mlet [p1 p2] raw-msg
-                              (format "%s %s" p1 p2)))
-                 ('erl_parse (mlet (p1 p2) raw-msg
-                               (format "%s %s" p1 p2)))
-                 (_ raw-msg))))
-         (insert (format "%s:%s ERROR %s\n" file line msg)))))
+   (lambda(file-e)      
+     (mlet [file issues] file-e
+       (mapcar (lambda (e)
+		 (mlet [line type raw-msg] e
+		   (let  ((msg 
+			   (mcase type                 
+			     ('erl_lint (mlet [p1 p2] raw-msg
+					  (format "%s %s" p1 p2)))
+			     ('erl_parse (mlet (p1 p2) raw-msg
+					   (format "%s %s" p1 p2)))
+			     (_ raw-msg))))
+		     (insert (format "%s:%s %s\n" file line msg)))))
+	       issues)))
    msgs))
 
 (defun erl-mvn-format-compiler-warnings(msgs)
@@ -209,7 +217,7 @@ This enables distel to work. The emacs distel environment will automatically be 
        (mapcar 
         (lambda(e)        
           (mlet [line type raw-msg] e
-            (insert (format "%s:%s WARNING %s\n" file line raw-msg))))
+            (insert (format "%s:%s %s\n" file line raw-msg))))
         issues)))
    msgs))
 
