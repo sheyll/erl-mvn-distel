@@ -43,12 +43,14 @@
   "When a buffer is saved it is automatically compiled. Compiler errors and
  warnings are displayed in a seperate buffer"
   (interactive)
-  (if (not erl-mvn-current-workspace)
+  (if (erl-mvn-is-relevant-erl-buffer)
       (progn
-	(message "Workspace of current project not running. Building complete workspace.")
-	(sleep-for 2)
-	(erl-mvn-build-workspace (erl-mvn-find-workspace))))
-  (erl-mvn-compile-buffer))
+	(if (not erl-mvn-current-workspace)
+	    (progn
+	      (message "Workspace of current project not running. Building complete workspace.")
+	      (sleep-for 2)
+	      (erl-mvn-build-workspace (erl-mvn-find-workspace))))
+	(erl-mvn-compile-buffer))))
 
 ;; ----------------------------------------------------------------------
 ;;  Functions that will interact with maven to gather build parameters,
@@ -159,7 +161,8 @@ This enables distel to work. The emacs distel environment will automatically be 
 (defun erl-mvn-kill-erlang()
   "Stops the erlang node that is currently running."
   (interactive)
-  (kill-buffer erl-mvn-erlang-buffer-name))
+  (kill-buffer erl-mvn-erlang-buffer-name)
+  (setq erl-mvn-current-workspace nil))
 
 ;; ----------------------------------------------------------------------
 ;; These functions relate to buffers or buffer contentes and allow fast
@@ -326,3 +329,6 @@ for the project identified by an artifact id."
 ;;  Tests
 ;; ----------------------------------------------------------------------
 
+(defun erl-mvn-is-relevant-erl-buffer()
+  "Private function. Determines if the current buffer contains erlang code managed by the current node."
+  (string-match "^.+\.erl$" buffer-file-name))
