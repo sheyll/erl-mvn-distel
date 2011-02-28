@@ -1,2 +1,13 @@
 Smoother integration erlang-plugin for maven with distel and emacs.
 
+Getting Started
+---------------
+
+The ~/.emacs file should contain the statements necessary to load the erlang and distel modes. Add the following lines _after_ Distel and Erlang mode:
+
+    ;Erlang Maven and Distel intergration
+    (add-to-list 'load-path "<erl-mvn-distel-path>")
+    (require 'erl-mvn)
+    (erl-mvn-setup)
+
+
