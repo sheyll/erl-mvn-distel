@@ -14,7 +14,7 @@
   "A list of recognized maven projects.")
 
 (defvar erl-mvn-node-name 
-  (concat "erl-mvn-test-node@" (car (process-lines "hostname" "--fqdn")))
+  (concat "erl-mvn-test-node@" (car (process-lines "hostname" "-f")))
   "The nodename of the test node for maven and distel.")
 
 (defvar erl-mvn-erlang-mvn-packaging-types '("erlang-otp" "erlang-std")
