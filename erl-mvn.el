@@ -1,12 +1,10 @@
-(require 'derl)
-(require 'cl)
 (provide 'erl-mvn)
 
 ;; ----------------------------------------------------------------------
 ;;  Global Vars
 ;; ----------------------------------------------------------------------
 
-(defvar erl-mvn-erlang-executable  "erl"
+(defvar erl-mvn-erlang-executable "erl"
   "The path to the erlang executable.")
 
 (defvar erl-mvn-maven-executable "mvn"
@@ -15,14 +13,42 @@
 (defvar erl-mvn-projects (make-hash-table)
   "A list of recognized maven projects.")
 
-(defvar erl-mvn-node-name "erl-mvn-test-node"
+(defvar erl-mvn-node-name 
+  (concat "erl-mvn-test-node@" (car (process-lines "hostname" "--fqdn")))
   "The nodename of the test node for maven and distel.")
-
-(defvar erl-mvn-erlang-cookie 'secret_cookie
-  "The security cookie for the erlang node.")
 
 (defvar erl-mvn-erlang-mvn-packaging-types '("erlang-otp" "erlang-std")
   "The packaging types that identify a project as erlang project")
+
+(defvar erl-mvn-erlang-buffer-name 
+  (concat "*" erl-mvn-node-name "*")
+  "The name of the buffer associated to the erlang process.")
+
+(defvar erl-mvn-current-workspace nil
+  "The current workspace folder.")
+
+;; ----------------------------------------------------------------------
+;;  More UI like functions that assure a smooth user experience.
+;; ----------------------------------------------------------------------
+
+(defun erl-mvn-setup()
+  "Adds the compile function to the save hooks of erlang files."
+  (interactive)
+  (add-hook 
+   'erlang-mode-hook
+   (lambda ()
+     (add-hook 'after-save-hook 'erl-mvn-erl-buffer-saved))))
+
+(defun erl-mvn-erl-buffer-saved()
+  "When a buffer is saved it is automatically compiled. Compiler errors and
+ warnings are displayed in a seperate buffer"
+  (interactive)
+  (if (not erl-mvn-current-workspace)
+      (progn
+	(message "Workspace of current project not running. Building complete workspace.")
+	(sleep-for 2)
+	(erl-mvn-build-workspace (erl-mvn-find-workspace))))
+  (erl-mvn-compile-buffer))
 
 ;; ----------------------------------------------------------------------
 ;;  Functions that will interact with maven to gather build parameters,
@@ -30,16 +56,18 @@
 ;;  modules of the workspace.
 ;; ----------------------------------------------------------------------
 
-(defun erl-mvn-kill-erlang()
-  "Stops the erlang node that is currently running."
-  (interactive)
-  (kill-buffer erl-mvn-node-name))
-
 (defun erl-mvn-build-workspace(workspace-dir)
   "Finds all subdirectories in workspace-dir, that contain erlang-otp or erlang-std maven projects.\
 Starts a single erl node and invokes maven in each project to compile upload module to the erlang node.\
 This enables distel to work. The emacs distel environment will automatically be connected to that test node, if not already done."
   (interactive "DWorkspace directory: ")
+  (require 'derl)
+  (if erl-mvn-current-workspace
+      (if (not (string= workspace-dir erl-mvn-current-workspace))
+	  (progn 
+	    (message "Closing workspace %s." erl-mvn-current-workspace)
+	    (erl-mvn-kill-erlang))))
+  (setq erl-mvn-current-workspace workspace-dir)
   (erl-mvn-start-node erl-mvn-node-name)  
   (message "Searching for poms in: %s" workspace-dir)
   (let ((ws-sub-dirs (directory-files workspace-dir 'full-name "^[^.].+")))
@@ -89,8 +117,7 @@ This enables distel to work. The emacs distel environment will automatically be 
                           "*maven-output*"   ; current buffer
                           't   ; redisplay
                           "-f" pom
-                          (concat "-Dremote=" 
-                                  (erl-mvn-complete-node erl-mvn-node-name))
+                          (concat "-Dremote=" erl-mvn-node-name)
                           "erlang:show-build-info"
 			  "erlang:upload"
                           "test-compile")
@@ -112,31 +139,27 @@ This enables distel to work. The emacs distel environment will automatically be 
       (message (concat "Node already running: " node-name))
     (progn
       (message (concat "Starting node name: " node-name))            
-      (start-process node-name node-name 
+      (start-process erl-mvn-erlang-buffer-name
+		     erl-mvn-erlang-buffer-name
 		     erl-mvn-erlang-executable
-		     "-name" (erl-mvn-complete-node node-name)
-		     "-setcookie" (symbol-name erl-mvn-erlang-cookie))
+		     "-name" node-name)
       (sleep-for 5)
       (erl-mvn-distel-connect-node node-name))))
 
 (defun erl-mvn-node-running(node-name)
   "Private function. Returns 't if a an erlang process was already started for node-name, by checking wether a buffer of that name exits"
-  (not (eq 'nil (member node-name (mapcar (function buffer-name) (buffer-list))))))
-
-(defun erl-mvn-complete-node(node-name)
-  "Private function. Return the node with hostname."
-  (concat node-name "@" (erl-determine-hostname)))
-
-(defun erl-mvn-complete-node-distel(node-name)
-  "Private function. Return the node with hostname as symbol. as distel requires it."
-  (make-symbol (erl-mvn-complete-node node-name)))
+  (not (eq 'nil (member erl-mvn-erlang-buffer-name (mapcar (function buffer-name) (buffer-list))))))
 
 (defun erl-mvn-distel-connect-node (node-name) 
   "Private function."     
-  (let ((n (erl-mvn-complete-node-distel node-name)))
+  (let ((n (make-symbol node-name)))
     (setq erl-nodename-cache n)
-    (setq derl-cookie erl-mvn-erlang-cookie)
     (erl-ping n)))
+
+(defun erl-mvn-kill-erlang()
+  "Stops the erlang node that is currently running."
+  (interactive)
+  (kill-buffer erl-mvn-erlang-buffer-name))
 
 ;; ----------------------------------------------------------------------
 ;; These functions relate to buffers or buffer contentes and allow fast
@@ -149,7 +172,9 @@ This enables distel to work. The emacs distel environment will automatically be 
   (let* ((fn (file-truename (buffer-file-name)))
          (pom-file (erl-mvn-find-pom fn))
 	 (artifact-id (erl-mvn-pom-lookup pom-file 'artifactId))
-         (node (erl-mvn-complete-node-distel erl-mvn-node-name)))    
+	 (warnings-r '())
+	 (errors-r '())
+         (node (make-symbol erl-mvn-node-name)))    
     (let ((erl-popup-on-output-old erl-popup-on-output))
       (setq erl-popup-on-output nil)
       (erpc node 'code 'add_paths 
@@ -161,27 +186,34 @@ This enables distel to work. The emacs distel environment will automatically be 
            
            (['ok module warnings] 
             (message "Successfully compiled module: %s." module)
+	    (setq warnings-r warnings)
+	    (setq errors-r '())
             (erl-mvn-show-compilation-results '() warnings))
            
            (['error errors warnings] 
             (message "Compilation failed!")            
+	    (setq warnings-r warnings)
+	    (setq errors-r errors)
             (erl-mvn-show-compilation-results errors warnings))
            
            (unexpected
+	    (setq warnings-r '())
+	    (setq errors-r '())
             (message "Unexpected message %s" unexpected))))
        'nil
        node 
        'compile 'file (cons fn (list (erl-mvn-get-erlang-compile-options artifact-id))))
-      (setq erl-popup-on-output erl-popup-on-output-old))))
+      (setq erl-popup-on-output erl-popup-on-output-old))
+    (list warnings-r errors-r)))
 
 (defun erl-mvn-show-compilation-results(errors warnings)
   "Private function. Show a buffer with the compiler warnings."
-  (if (not (and (eq errors '()) (eq warnings '())))
       (save-excursion
-	(with-current-buffer (get-buffer-create "*erl-mvn-compile-errors*")
-	  (save-selected-window        
-	    (select-window (or (get-buffer-window (current-buffer))
-			       (display-buffer (current-buffer)))))
+	(with-current-buffer (get-buffer-create "*erl-mvn-compile-errors*")	  
+	  (if (not (and (eq errors '()) (eq warnings '())))
+	      (save-selected-window        
+		(select-window (or (get-buffer-window (current-buffer))
+				   (display-buffer (current-buffer))))))
 	  (fundamental-mode)
 	  (setq buffer-read-only nil)
 	  (kill-region (point-min) (point-max))
@@ -189,7 +221,7 @@ This enables distel to work. The emacs distel environment will automatically be 
 	  (erl-mvn-format-compiler-errors errors)
 	  (insert "\n\nWarnings:\n=========\n")
 	  (erl-mvn-format-compiler-warnings warnings)
-	  (compilation-mode)))))
+	  (compilation-mode))))
 
 (defun erl-mvn-format-compiler-errors(msgs)
   "Private function that formats a list of compiler errors as returned by compile:file/2 and inserts them into the current buffer."
@@ -253,6 +285,12 @@ This enables distel to work. The emacs distel environment will automatically be 
               "")
           pom)))))
 
+(defun erl-mvn-find-workspace()
+  "Private function. Guesses the parent folder of the current project to be the workspace"
+   (file-name-directory 
+    (file-truename
+     (concat (erl-mvn-find-pom buffer-file-name) "/.."))))
+
 (defun erl-mvn-make-code-path-symbol(artifact-id)
   "Private function. Returns a symbol for the variable that contains the code path list\
 for the project identified by an artifact id."
@@ -287,3 +325,4 @@ for the project identified by an artifact id."
 ;; ----------------------------------------------------------------------
 ;;  Tests
 ;; ----------------------------------------------------------------------
+
