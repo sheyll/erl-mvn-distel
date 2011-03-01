@@ -1,39 +1,6 @@
-Ideensammlung erlymacs:
+TODOs
+-----
 
-- integration mit dem maven erlang plugin:
-
--- open test for source, open source for test
--- inspects the pom to find the source directories
-   --- knows standard directories via 
--- project source tree view
-
--- automatically starts erlang node for tests when a new maven project was opened.
-   -- starts one erlang node per project it detects called erlymock-<project-name>
-   -- runs mvn test -DtestNode=... -DshutdownTestNode=false
-
--- compile file keybinding(add compilation of single file in emacs, 
-   to maven plugin add generation of compile command for source files)
-   compiles the file directly on the test node, also used by maven
-
-   -- memorizes wether maven already uploaded all modules or not
-
--- auto build on save
-
--- eunit test runner, that runs eunit directly in a specified node, 
-   -- runs all tests or just single tests
-   -- colors buffer according to test results
-
--- integrated coverage display
-
-
-- write simple erlang tool for development support
---> simple access to shell
-
-
-----
-
-Konkrete TODOs:
-
-. nur ein erl-nodde starten
-. distel connection initialisieren
-. build info cachen
+* Start an erlang node per maven project, because mvn erlang:test-upload will not upload testable dependend modules
+* switch the distel default node-name to the node of the project of the current buffer when switching buffers
+(Does a buffer-switch-hook exists???)
