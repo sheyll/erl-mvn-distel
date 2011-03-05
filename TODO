@@ -1,6 +1,5 @@
 TODOs
 -----
 
-* Start an erlang node per maven project, because mvn erlang:test-upload will not upload testable dependend modules
-* switch the distel default node-name to the node of the project of the current buffer when switching buffers
-(Does a buffer-switch-hook exists???)
+* abstract artifact-id away, using a function "erl-mvn-get-project-id pom-file"
+* watch active projects and set distels nodename accordingly

@@ -10,9 +10,9 @@
 (defvar erl-mvn-maven-executable "mvn"
   "The path to the maven executable.")
 
-(defvar erl-mvn-node-name 
-  (concat "erl-mvn-test-node@" (car (process-lines "hostname" "-f")))
-  "The nodename of the test node for maven and distel.")
+(defvar erl-mvn-hostname 
+  (car (process-lines "hostname" "-f"))
+  "The hostname of the erlang nodes for maven and distel.")
 
 (defvar erl-mvn-popup-compiler-output 't
   "Setting this to non nil will cause a buffer with the
@@ -22,6 +22,12 @@
 (defconst erl-mvn-erlang-mvn-packaging-types '("erlang-otp" "erlang-std")
   "The packaging types that identify a project as erlang
   project")
+
+(defvar erl-mvn-erl-mvn-erlang-sources
+  (file-truename 
+   (file-name-directory 
+            (or (locate-library "distel") load-file-name)))
+   "Path to the erlang sources shipped with erl-mvn.")
 
 ;; ----------------------------------------------------------------------
 ;;  These variables will be set while working with erl-mvn
@@ -43,22 +49,47 @@
   "Contains the test-source paths of the projects in the current
   workspace as prop list where the key is the artifact-id.")
 
-(defvar erl-mvn-successful-mvn-built-artifacts nil
-  "Contains all artifacts of the current workspace that were
-  succesfully built by mvn.")
+(defvar erl-mvn-open-projects nil
+  "Contains a list of buffers representing maven erlang projects. Each erlang maven project has its own erlang test node.")
 
-(defvar erl-mvn-erlang-buffer-name (concat "*" erl-mvn-node-name "*")
-  "The name of the buffer associated to the erlang process.")
-
+;(defvar erl-mvn-erl-source-path
+;  (file-truename
+;   (file-name-directory (or (locate-library "erl-mvn") load-file-name)))
+;   "Path to the erlang sources.")
 
 ;; ----------------------------------------------------------------------
 ;;  Startup and shutdown functions.
 ;; ----------------------------------------------------------------------
 
+(defun erl-mvn-open-project(pom-file)
+  "If the pomfile describes a not already open project, a buffer
+will be created containing a description of the project and the
+associated assets. An erlang node will be started to upload the modules to, enableing distel to do its job. Automatic recompilation on saving erlang sources in that project is activated."
+  (interactive "FPOM-File: ")
+  (let ((pom-file (file-truename pom-file)))
+    (let* ((artifact-id (erl-mvn-pom-lookup pom-file 'artifactId))
+	   (node-name (erl-mvn-make-node-name artifact-id)))
+      (if (not (erl-mvn-is-maven-erlang-project pom-file))
+	  (message "No maven-erlang project found in %s" proj-dir)
+	(progn
+	  (erl-mvn-start-node node-name)
+	  (add-to-list 'erl-mvn-open-projects artifact-id)
+	  (erl-mvn-compile-project-maven pom-file))))))
+
+(defun erl-mvn-close-project(artifact-id)
+  "Closes a project opened with erl-mvn-open-project. Removes all processes and buffers associated to the artifact-id."
+  (interactive "sArtifactId of project to close: ")
+  (setq erl-mvn-open-projects (delete artifact-id erl-mvn-open-projects))
+  (let* ((node-name (erl-mvn-make-node-name artifact-id))
+	(erl-buf (erl-mvn-make-buffer-name node-name)))
+    (cond ((erl-mvn-node-running node-name)
+	   (delete-process erl-buf)
+	   (kill-buffer erl-buf))))
+  (kill-buffer (erl-mvn-make-mvn-output-buffer-name artifact-id)))
+
 (defun erl-mvn-setup()
   "Adds the compile function to the save hooks of erlang files."
   (interactive)
-  (erl-mvn-start-node erl-mvn-node-name)
   (add-hook 
    'erlang-mode-hook
    (lambda ()
@@ -69,15 +100,7 @@
  warnings are displayed in a seperate buffer"
   (interactive)
   (if (erl-mvn-is-relevant-erl-buffer)
-      (let* ((fn buffer-file-name)
-             (pom-file (erl-mvn-find-pom fn))
-             (artifact-id (erl-mvn-pom-lookup pom-file 'artifactId)))
-        (if (member artifact-id erl-mvn-successful-mvn-built-artifacts)
-            (erl-mvn-compile-buffer artifact-id)
-          (progn
-            (message "Project %s was not successfully build yet." artifact-id)
-            (erl-mvn-compile-project-maven pom-file)
-            (message "Project %s was now built, please try compiling %s again." artifact-id fn))))
+      (erl-mvn-compile-buffer)
     (message "Not erlang compiling buffer because it's boring.")))
 
 (defun erl-mvn-is-relevant-erl-buffer()
@@ -90,89 +113,75 @@ erlang code managed by the current node."
              (artifact-id (erl-mvn-pom-lookup pom-file 'artifactId))
              (src-dir (cadr (assoc artifact-id erl-mvn-source-paths)))
              (test-src-dir (cadr (assoc artifact-id erl-mvn-test-source-paths))))
-        (or (string= src-dir fn-dir)
-            (string= test-src-dir fn-dir)))))
+	(and (member artifact-id erl-mvn-open-projects)
+	     (or (string= src-dir fn-dir)
+		 (string= test-src-dir fn-dir))))))
         
 (defun erl-mvn-shutdown()
-  "Stops the erlang node that is currently running."
+  "Stops the erlang nodes currently running."
   (interactive)  
   (setq erl-mvn-source-paths nil)
   (setq erl-mvn-test-source-paths nil)
   (setq erl-mvn-code-paths nil)
-  (setq erl-mvn-successful-mvn-built-artifacts nil)
   (setq erl-mvn-include-paths nil)
-  (cond ((erl-mvn-node-running erl-mvn-node-name)      
-         (delete-process erl-mvn-erlang-buffer-name)
-         (kill-buffer erl-mvn-erlang-buffer-name))))
-
-(defun erl-mvn-reset()
-  "Stops and starts the erlang node that is currently running. Resets all state."
-  (interactive)
-  (erl-mvn-shutdown)
-  (erl-mvn-start-node erl-mvn-node-name))
+  (mapcar (function erl-mvn-close-project) 
+	  erl-mvn-open-projects))
 
 ;; ----------------------------------------------------------------------
 ;;  Functions for maven interaction
 ;; ----------------------------------------------------------------------
 
-(defun erl-mvn-add-current-buffer-project()
-  "Guesses a pom file for the current buffer and adds the project
-to the current workspace, if it not already exists(determined by
-the project artifact-id).  If the pom file in some parent
-directory of the directory of the current buffer exists, it
-invokes maven to compile and upload the code into the test node,
-and enables the autocompile on save action for all erlang source
-files in that project."
-  (interactive)
-  (let* ((pom-file (erl-mvn-find-pom buffer-file-name))
-         (artifact-id (erl-mvn-pom-lookup pom-file 'artifactId)))
-    (message "Found project %s:" artifact-id)
-    (if (not (member artifact-id erl-mvn-successful-mvn-built-artifacts))
-        (if (erl-mvn-is-maven-erlang-project pom-file)
-            (erl-mvn-compile-project-maven pom-file)
-          (message "No maven-erlang project found in %s" proj-dir))
-      (message "Project %s already managed." artifact-id))))
-
 (defun erl-mvn-compile-project-maven(pom-file)
   "Private function. Invokes maven to compile an erlang project
 defined by a pom file. Extracts source folders, include- and
 code_paths. If a build fails all variables are reset."
-  (let ((artifact-id  (erl-mvn-pom-lookup pom-file 'artifactId))
-        (packaging (erl-mvn-pom-lookup pom-file 'packaging))
-        (include-dirs '())
-        (code-paths '())
-        (src-dir "")
-        (test-src-dir "")
-        (build-failed nil))
-    (message "Building project %s of type %s" artifact-id packaging)
-    (let ((mvn-result (erl-mvn-run-maven pom-file)))
-      (mapcar 
-       (lambda(l) 
-         (cond ((string-match " include_dir: \\(.+\\)$" l)
-                (add-to-list 'include-dirs (file-truename (match-string 1 l))))
-               ((string-match " src_dir: \\(.+\\)$" l)
-                (setq src-dir (concat (file-truename (match-string 1 l)) "/")))
-               ((string-match " test_src_dir: \\(.+\\)$" l)
-                (setq test-src-dir (concat (file-truename (match-string 1 l)) "/")))
-               ((string-match "^\\[ERROR\\] BUILD FAILURE" l)
-                (setq build-failed 't))
-               ((string-match " code_path: \\(.+\\)$" l)
-                (add-to-list 'code-paths (file-truename (match-string 1 l))))))
-       mvn-result)
-      (if build-failed
-          (message "Building and adding maven project %s failed!" artifact-id)
-        (progn
-          (add-to-list 'erl-mvn-include-paths  `(,artifact-id ,include-dirs))        
-          (add-to-list 'erl-mvn-code-paths `(,artifact-id ,code-paths))
-          (add-to-list 'erl-mvn-source-paths `(,artifact-id ,src-dir))
-          (add-to-list 'erl-mvn-test-source-paths `(,artifact-id ,test-src-dir))
-          (add-to-list 'erl-mvn-successful-mvn-built-artifacts artifact-id))))))
-             
+  (interactive "FPOM file of project to compile with maven: ")
+  (let ((pom-file (file-truename pom-file)))
+    (let ((artifact-id  (erl-mvn-pom-lookup pom-file 'artifactId))
+	  (packaging (erl-mvn-pom-lookup pom-file 'packaging))
+	  (include-dirs '())
+	  (code-paths '())
+	  (src-dir "")
+	  (test-src-dir "")
+	  (build-failed nil))
+      (if (not (member artifact-id erl-mvn-open-projects))
+	  (progn
+	    (message "Project %s is currently not managed." artifact-id)
+	    (erl-mvn-open-project pom-file))
+	(progn
+	  (message "Building project %s of type %s" artifact-id packaging)
+	  (let ((mvn-result (erl-mvn-run-maven pom-file)))
+	    (mapcar 
+	     (lambda(l) 
+	       (cond ((string-match " include_dir: \\(.+\\)$" l)
+		      (add-to-list 'include-dirs (file-truename (match-string 1 l))))
+		     ((string-match " src_dir: \\(.+\\)$" l)
+		      (setq src-dir (concat (file-truename (match-string 1 l)) "/")))
+		     ((string-match " test_src_dir: \\(.+\\)$" l)
+		      (setq test-src-dir (concat (file-truename (match-string 1 l)) "/")))
+		     ((string-match "^\\[ERROR\\] BUILD FAILURE" l)
+		      (setq build-failed 't))
+		     ((string-match " code_path: \\(.+\\)$" l)
+		      (add-to-list 'code-paths (file-truename (match-string 1 l))))))
+	     mvn-result)
+	    (if build-failed
+		(message "Building and adding maven project %s failed!" artifact-id)
+	      (progn
+		(add-to-list 'erl-mvn-include-paths  `(,artifact-id ,include-dirs))        
+		(add-to-list 'erl-mvn-code-paths `(,artifact-id ,code-paths))
+		(add-to-list 'erl-mvn-source-paths `(,artifact-id ,src-dir))
+		(add-to-list 'erl-mvn-test-source-paths `(,artifact-id ,test-src-dir))))))))))
+
 (defun erl-mvn-run-maven(pom)
   "Private function. Runs maven and pastes the output into a
 buffer, so the user is able to follow the output."
+  (message "Invoking maven with pom %s" pom)
+  (let* ((artifact-id (erl-mvn-pom-lookup pom 'artifactId))
+	 (node-name (erl-mvn-make-node-name artifact-id))
+	 (mvn-output-buffer (erl-mvn-make-mvn-output-buffer-name artifact-id)))
     (save-excursion
-      (with-current-buffer (get-buffer-create "*maven-output*")
+      (with-current-buffer 
+	  (get-buffer-create mvn-output-buffer)
         (setq buffer-read-only nil)
         (save-selected-window          
           (select-window (or (get-buffer-window (current-buffer))
@@ -181,15 +190,15 @@ buffer, so the user is able to follow the output."
           (let ((start (point)))
             (call-process erl-mvn-maven-executable
                           nil ; infile
-                          "*maven-output*"   ; current buffer
+                          mvn-output-buffer
                           't   ; redisplay
                           "-f" pom
-                          (concat "-Dremote=" erl-mvn-node-name)
+                          (concat "-Dremote=" node-name)
                           "erlang:show-build-info"
 			  "erlang:upload-tests"
                           "test-compile")
             (setq buffer-read-only 't)
-            (erl-mvn-to-lines (buffer-substring-no-properties start (point-max))))))))
+            (erl-mvn-to-lines (buffer-substring-no-properties start (point-max)))))))))
 
 (defun erl-mvn-is-maven-erlang-project(pom-file)
   "Private function. Returns t if the pom-file exists and defines
@@ -250,8 +259,8 @@ can be used by maven for tests and debug code"
       (message (concat "Node already running: " node-name))
     (progn
       (message (concat "Starting node name: " node-name))            
-      (start-process erl-mvn-erlang-buffer-name
-		     erl-mvn-erlang-buffer-name
+      (start-process (erl-mvn-make-buffer-name node-name)
+		     (erl-mvn-make-buffer-name node-name)
 		     erl-mvn-erlang-executable
 		     "-name" node-name)
       (sleep-for 5)
@@ -261,29 +270,34 @@ can be used by maven for tests and debug code"
   "Private function. Returns 't if a an erlang process was
 already started for node-name, by checking wether a buffer of
 that name exits"
-  (not (eq 'nil (member erl-mvn-erlang-buffer-name (mapcar (function buffer-name) (buffer-list))))))
+  (not (eq 'nil (member (erl-mvn-make-buffer-name node-name) (mapcar (function buffer-name) (buffer-list))))))
 
 (defun erl-mvn-distel-connect-node (node-name) 
-  "Private function."     
+  "Private function. Connectes distel to a node identified by an erlang long node name string."     
   (let ((n (make-symbol node-name)))
     (setq erl-nodename-cache n)
     (erl-ping n)))
-
+             
+(defun erl-mvn-make-node-name(str)
+  "Private function. Creates a long erlang node name from a string."
+  (concat "erl-mvn-test-node-" str "@" erl-mvn-hostname))
 
 ;; ----------------------------------------------------------------------
-;;  Function for compilation of erlang modules currently open in a buffer.
+;;  Functions interacting with source buffers and an erlang node.
 ;; ----------------------------------------------------------------------
 
-(defun erl-mvn-compile-buffer (artifact-id)
+(defun erl-mvn-compile-buffer ()
   "Compile the file of the buffer with the corresponding erlang
 node, if it belongs to a project currently managed."
   (interactive)
-  (setq erl-source-buffer (current-buffer))  
+  (setq erl-source-buffer (current-buffer))
   (let* 
-      ((fn (file-truename (buffer-file-name)))       
+      ((fn (file-truename (buffer-file-name)))
+       (artifact-id (erl-mvn-pom-lookup (erl-mvn-find-pom fn) 'artifactId))
        (warnings-r '())
        (errors-r '())
-       (node (make-symbol erl-mvn-node-name)))    
+       (node-name (erl-mvn-make-node-name artifact-id))
+       (node (make-symbol node-name)))    
     (let 
         ((erl-popup-on-output-old erl-popup-on-output))
       (setq erl-popup-on-output nil)
@@ -452,6 +466,15 @@ c) (d) (e f)) --> (a b c d e f)."
         l))
      lists)
     res))
+
+
+(defun erl-mvn-make-buffer-name(str)
+  "Private function. Converts a string to a good process buffer name."
+  (concat "*" str "*"))
+
+(defun erl-mvn-make-mvn-output-buffer-name(str)
+  "Private function. Converts a string to a good name for a maven output buffer"
+  (erl-mvn-make-buffer-name (concat "erl-mvn-maven-output-" str)))
 
 ;; ----------------------------------------------------------------------
 ;;  Tests
