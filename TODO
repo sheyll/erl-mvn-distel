@@ -1,6 +1,8 @@
 TODOs
 -----
 
+* FIX: erlang source buffer highlighting doesn't work anymore
+
 * watch active projects and set distels nodename accordingly
 
 * add a check only flag to buffer compilation so that pre-save action checks can be made
