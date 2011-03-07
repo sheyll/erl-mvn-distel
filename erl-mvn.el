@@ -93,20 +93,24 @@ associated assets. An erlang node will be started to upload the modules to, enab
   (add-hook 
    'erlang-mode-hook
    (lambda ()
-     (add-hook 'after-save-hook 'erl-mvn-erl-buffer-saved))))
+     (add-hook 'after-save-hook 
+	       (lambda()
+		 (erl-mvn-update-distel-settings)
+		 (erl-mvn-erl-buffer-saved)))))
+  (add-hook 'window-configuration-change-hook 'erl-mvn-update-distel-settings))
 
 (defun erl-mvn-erl-buffer-saved()
   "When a buffer is saved it is automatically compiled. Compiler errors and
  warnings are displayed in a seperate buffer"
   (interactive)
   (if (erl-mvn-is-relevant-erl-buffer)
-      (erl-mvn-compile-buffer)
-    (message "Not erlang compiling buffer because it's boring.")))
+      (erl-mvn-compile-buffer 't)))
 
 (defun erl-mvn-is-relevant-erl-buffer()
   "Private function. Determines if the current buffer contains
 erlang code managed by the current node."
-  (if (string-match "^.+\.erl$" buffer-file-name)      
+  (if (and buffer-file-name
+	   (string-match "^.+\.erl$" buffer-file-name))
       (let* ((fn buffer-file-name)
              (fn-dir (file-name-directory fn))
              (pom-file (erl-mvn-find-pom fn))
@@ -273,7 +277,8 @@ that name exits"
   (not (eq 'nil (member (erl-mvn-make-buffer-name node-name) (mapcar (function buffer-name) (buffer-list))))))
 
 (defun erl-mvn-distel-connect-node (node-name) 
-  "Private function. Connectes distel to a node identified by an erlang long node name string."     
+  "Private function. Connectes distel to a node identified by an
+erlang long node name string."
   (let ((n (make-symbol node-name)))
     (setq erl-nodename-cache n)
     (erl-ping n)))
@@ -282,58 +287,97 @@ that name exits"
   "Private function. Creates a long erlang node name from a string."
   (concat "erl-mvn-test-node-" str "@" erl-mvn-hostname))
 
+(defun erl-mvn-update-distel-settings()
+  "Updates distel settings so that distel functions work for the
+current buffer. This is necessary as erl-mvn has a seperate
+erlang node for each maven project, and distel always works with
+just one node."
+  (if (and (not (minibufferp))
+	   (erl-mvn-is-relevant-erl-buffer))
+      (let ((node 
+	     (make-symbol
+	      (erl-mvn-make-node-name 
+	       (erl-mvn-pom-lookup 
+		(erl-mvn-find-pom buffer-file-name) 
+		'artifactId)))))
+	(setq erl-nodename-cache node))))
+
 ;; ----------------------------------------------------------------------
 ;;  Functions interacting with source buffers and an erlang node.
 ;; ----------------------------------------------------------------------
 
-(defun erl-mvn-compile-buffer ()
+(defun erl-mvn-compile-buffer (load-module)
   "Compile the file of the buffer with the corresponding erlang
-node, if it belongs to a project currently managed."
-  (interactive)
+node uploading it as a side effect, if it belongs to a project
+currently managed. If only-check is non-nil, no code will
+actually be loaded and is checked only for errors and warnings"
+  (interactive "Sload-module: ")
   (setq erl-source-buffer (current-buffer))
   (let* 
       ((fn (file-truename (buffer-file-name)))
-       (artifact-id (erl-mvn-pom-lookup (erl-mvn-find-pom fn) 'artifactId))
+       (pom-file (erl-mvn-find-pom fn))
+       (output-dir
+	(file-truename 
+	 (concat (file-name-directory pom-file) "target/emacs-compiled/")))
+       (source-file 
+	(file-truename (concat output-dir (file-name-nondirectory fn))))
+       (artifact-id (erl-mvn-pom-lookup pom-file 'artifactId))
        (warnings-r '())
        (errors-r '())
        (node-name (erl-mvn-make-node-name artifact-id))
-       (node (make-symbol node-name)))    
-    (let 
-        ((erl-popup-on-output-old erl-popup-on-output))
-      (setq erl-popup-on-output nil)
-      (erpc node 'code 'add_paths
-            (cdr (assoc artifact-id erl-mvn-code-paths)))
-      (message "Compiling %s from project %s" fn artifact-id)
+       (node (make-symbol node-name))
+       (erl-popup-on-output-old erl-popup-on-output))
+
+    (setq erl-popup-on-output nil)
+    (cd (file-name-directory pom-file))
+    (make-directory output-dir 'parents)
+    (write-region (point-min) (point-max) source-file)
+    (erpc node 'code 'add_patha (list output-dir))
+    (erpc node 'code 'add_paths
+	  (cdr (assoc artifact-id erl-mvn-code-paths)))
+    (message "Compiling %s from project %s" fn artifact-id)
+    (let ((res-module  'nil))
       (erl-rpc 
        (lambda (result) 
-         (mcase result
-           
-           (['ok module warnings] 
-            (message "Successfully compiled module: %s." module)
+	 (mcase result
+	   
+	   (['ok module warnings] 		
 	    (setq warnings-r warnings)
 	    (setq errors-r '())
-            (erl-mvn-show-compilation-results '() warnings erl-source-buffer))
-           
-           (['error errors warnings] 
-            (message "Compilation failed!")            
+	    (erl-mvn-show-compilation-results '() warnings erl-source-buffer)
+	    (setq res-module module))
+	   
+	   (['error errors warnings] 
+	    (message "Compilation failed!")            
 	    (setq warnings-r warnings)
 	    (setq errors-r errors)
-            (erl-mvn-show-compilation-results errors warnings erl-source-buffer))
-           
-           (unexpected
+	    (erl-mvn-show-compilation-results errors warnings erl-source-buffer))
+	   
+	   (unexpected
 	    (setq warnings-r '())
 	    (setq errors-r '())
-            (message "Unexpected message %s" unexpected)))) 'nil
-       node 'compile 'file 
-       (cons fn (list (erl-mvn-get-erlang-compile-options artifact-id))))
-      (setq erl-popup-on-output erl-popup-on-output-old))
-    (list warnings-r errors-r)))
+	    (message "Unexpected message %s" unexpected)))) 
+       'nil
+       node 
+       'compile 
+       'file 
+       (cons source-file 
+	     (list (erl-mvn-get-erlang-compile-options artifact-id output-dir))))
+      
+      (cond (res-module
+	     (message "Successfully compiled module: %s." res-module)
+	     (cond (load-module
+		    (erpc node 'code 'purge (list res-module))
+		    (erpc node 'code 'load_file (list res-module))		      
+		    (message "Successfully loaded module %s into node %s." res-module node))))))
+    (setq erl-popup-on-output erl-popup-on-output-old))
+  (list warnings-r errors-r))
 
-(defun erl-mvn-get-erlang-compile-options (artifact-id)
+(defun erl-mvn-get-erlang-compile-options (artifact-id output-dir)
   "Private function. Returns a list of compiler arguments for
 compiling a source file of a project identified by a maven
 project artifact-id."
-  (append '(debug_info return verbose export_all)
+  (append `(debug_info return verbose export_all ,(tuple 'outdir output-dir))
           (mapcar (lambda(dir) (tuple 'i dir)) 
                   (cadr (assoc artifact-id erl-mvn-include-paths)))))
 
@@ -433,26 +477,27 @@ font-lock-warning-face on each line in the buffer, after removing
 all exiting warning face properties."
   (save-excursion
     (with-current-buffer buffer
-      (remove-text-properties (point-min) 
-                              (point-max) 
-                              '(font-lock-face font-lock-warning-face))
-      (remove-text-properties (point-min) 
-                              (point-max) 
-                              '(help-echo nil))
-      (font-lock-fontify-buffer)
-      (mapcar
-       (lambda (e)
-         (mlet (file line reason) e
-           (if (string= file buffer-file-name)
-               (mlet (start-pos end-pos) (erl-mvn-get-line-pos line)
-                 (add-text-properties start-pos
-                                      end-pos 
+      (let ((was-modified (buffer-modified-p)))
+	(remove-text-properties (point-min) 
+				(point-max) 
+				'(font-lock-face font-lock-warning-face))
+	(remove-text-properties (point-min) 
+				(point-max) 
+				'(help-echo nil))
+	(font-lock-fontify-buffer)
+	(mapcar
+	 (lambda (e)
+	   (mlet (file line reason) e
+	     (if (string= file buffer-file-name)
+		 (mlet (start-pos end-pos) (erl-mvn-get-line-pos line)
+		   (add-text-properties start-pos
+					end-pos 
                                       '(font-lock-face font-lock-warning-face))
-                 (add-text-properties start-pos
-                                      end-pos 
-                                      `(help-echo  ,(format "Problem: %s" reason)))))))
+		   (add-text-properties start-pos
+					end-pos 
+					`(help-echo  ,(format "Problem: %s" reason)))))))
          lines)
-      (set-buffer-modified-p 'nil))))
+	(set-buffer-modified-p was-modified)))))
 
 (defun erl-mvn-lists-join(lists)
   "Private function. Joins a list of lists to a list: ((a b
@@ -479,3 +524,8 @@ c) (d) (e f)) --> (a b c d e f)."
 ;; ----------------------------------------------------------------------
 ;;  Tests
 ;; ----------------------------------------------------------------------
+
+
+
+	    
+	

@@ -1,5 +1,15 @@
 TODOs
 -----
 
-* abstract artifact-id away, using a function "erl-mvn-get-project-id pom-file"
 * watch active projects and set distels nodename accordingly
+
+* add a check only flag to buffer compilation so that pre-save action checks can be made
+
+* add quick syntax check with after-change-functions
+
+* abstract artifact-id away, using a function "erl-mvn-get-project-id pom-file"
+
+* add (error ...) where appropriate
+
+
+* use overlays instead of text properties to highlight errors
