@@ -12,5 +12,3 @@ TODOs
 * add (error ...) where appropriate
 
 
-* use overlays instead of text properties to highlight errors
-

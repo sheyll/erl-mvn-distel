@@ -104,10 +104,17 @@ associated assets. An erlang node will be started to upload the modules to, enab
    'erlang-mode-hook
    (lambda ()
      (add-hook 'after-save-hook 
-	       (lambda()
-		 (erl-mvn-update-distel-settings)
-		 (erl-mvn-erl-buffer-saved)))))
-  (add-hook 'window-configuration-change-hook 'erl-mvn-update-distel-settings))
+	       (function erl-mvn-erl-buffer-saved))))
+  (add-hook 'post-command-hook 'erl-mvn-update-distel-settings))
+
+(defun erl-mvn-start-buffer-change-timer()
+  "Starts a timer that waits for two seconds,
+it is reset whenever the user issues any command. When the timer elapses erl-mvn-compile-timer-elapsed is called."
+  (run-at-time 2 sec (function erl-mvn-compile-timer-elapsed)))
+
+(defun erl-mvn-compile-timer-elapsed()
+  "Calls erl-mvn-erl-buffer-saved, and on the next command that is issued, the timer is started again.")
+
 
 (defun erl-mvn-erl-buffer-saved()
   "When a buffer is saved it is automatically compiled. Compiler errors and
