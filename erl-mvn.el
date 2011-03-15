@@ -14,7 +14,7 @@
   (car (process-lines "hostname" "-f"))
   "The hostname of the erlang nodes for maven and distel.")
 
-(defvar erl-mvn-popup-compiler-output 't
+(defvar erl-mvn-popup-compiler-output 'nil
   "Setting this to non nil will cause a buffer with the
  compilation results to popup everytime an error or warning was
  returned from an erlang buffer compilation")
@@ -80,14 +80,15 @@ associated assets. An erlang node will be started to upload the modules to, enab
 	(progn
 	  (erl-mvn-start-node node-name)
 	  (add-to-list 'erl-mvn-open-projects artifact-id)
-	  (erl-mvn-compile-project-maven pom-file))))))
+	  (erl-mvn-compile-project-maven pom-file)))))
+  (setq erl-mvn-irrelevant-buffers 'nil))
 
 (defun erl-mvn-close-project(artifact-id)
   "Closes a project opened with erl-mvn-open-project. Removes all processes and buffers associated to the artifact-id."
   (interactive "sArtifactId of project to close: ")
   (setq erl-mvn-open-projects (delete artifact-id erl-mvn-open-projects))
   (let* ((node-name (erl-mvn-make-node-name artifact-id))
-	(erl-buf (erl-mvn-make-buffer-name node-name)))
+	 (erl-buf (erl-mvn-make-buffer-name node-name)))
     (cond ((erl-mvn-node-running node-name)
 	   (delete-process erl-buf)
 	   (kill-buffer erl-buf))))
@@ -100,20 +101,41 @@ associated assets. An erlang node will be started to upload the modules to, enab
   (make-variable-buffer-local 'erl-mvn-compilation-result-overlays)
   (setq erl-mvn-erlang-source-file "")
   (make-variable-buffer-local 'erl-mvn-erlang-source-file)
+  (setq erl-mvn-current-buffer 'nil)
+  (setq erl-mvn-current-recompilation-timer 'nil)
+  (setq erl-mvn-irrelevant-buffers 'nil)
   (add-hook 
    'erlang-mode-hook
    (lambda ()
      (add-hook 'after-save-hook 
 	       (function erl-mvn-erl-buffer-saved))))
-  (add-hook 'post-command-hook 'erl-mvn-update-distel-settings))
+  (add-hook 'post-command-hook 
+	    (lambda ()
+	      (cond ((not (equal erl-mvn-current-buffer (current-buffer)))
+		     (if (erl-mvn-is-relevant-erl-buffer)
+			 (progn
+			   (setq erl-mvn-current-buffer (current-buffer))
+			   (erl-mvn-start-buffer-change-timer)
+			   (erl-mvn-update-distel-settings)))))))
+  (add-to-list 'after-change-functions (function erl-mvn-after-change)))
+
+
+(defun erl-mvn-after-change(beginning end old-length)
+  "Reset the compilation timer"
+  (erl-mvn-start-buffer-change-timer))
 
 (defun erl-mvn-start-buffer-change-timer()
   "Starts a timer that waits for two seconds,
 it is reset whenever the user issues any command. When the timer elapses erl-mvn-compile-timer-elapsed is called."
-  (run-at-time 2 sec (function erl-mvn-compile-timer-elapsed)))
+  (if erl-mvn-current-recompilation-timer
+      (cancel-timer erl-mvn-current-recompilation-timer))
+  (setq erl-mvn-current-recompilation-timer
+	(run-at-time "2 sec" 'nil (function erl-mvn-compile-timer-elapsed))))
 
 (defun erl-mvn-compile-timer-elapsed()
-  "Calls erl-mvn-erl-buffer-saved, and on the next command that is issued, the timer is started again.")
+  "Calls erl-mvn-erl-buffer-saved, and on the next command that is issued, the timer is started again."
+  (if (erl-mvn-is-relevant-erl-buffer)
+      (erl-mvn-compile-buffer 'nil)))
 
 
 (defun erl-mvn-erl-buffer-saved()
@@ -126,17 +148,23 @@ it is reset whenever the user issues any command. When the timer elapses erl-mvn
 (defun erl-mvn-is-relevant-erl-buffer()
   "Private function. Determines if the current buffer contains
 erlang code managed by the current node."
-  (if (and buffer-file-name
-	   (string-match "^.+\.erl$" buffer-file-name))
-      (let* ((fn buffer-file-name)
-             (fn-dir (file-name-directory fn))
-             (pom-file (erl-mvn-find-pom fn))
-             (artifact-id (erl-mvn-pom-lookup pom-file 'artifactId))
-             (src-dir (cadr (assoc artifact-id erl-mvn-source-paths)))
-             (test-src-dir (cadr (assoc artifact-id erl-mvn-test-source-paths))))
-	(and (member artifact-id erl-mvn-open-projects)
-	     (or (string= src-dir fn-dir)
-		 (string= test-src-dir fn-dir))))))
+  (if (not (member (current-buffer) erl-mvn-irrelevant-buffers))
+      (if (not
+	   (if (and buffer-file-name
+		    (string-match "^.+\.erl$" buffer-file-name))
+	       (let* ((fn buffer-file-name)
+		      (fn-dir (file-name-directory fn))
+		      (pom-file (erl-mvn-find-pom fn))
+		      (artifact-id (erl-mvn-pom-lookup pom-file 'artifactId))
+		      (src-dir (cadr (assoc artifact-id erl-mvn-source-paths)))
+		      (test-src-dir (cadr (assoc artifact-id erl-mvn-test-source-paths))))
+		 (and (member artifact-id erl-mvn-open-projects)
+		      (or (string= src-dir fn-dir)
+			  (string= test-src-dir fn-dir))))))
+	  (progn
+	    (add-to-list 'erl-mvn-irrelevant-buffers (current-buffer))
+	    'nil)
+	't)))
         
 (defun erl-mvn-shutdown()
   "Stops the erlang nodes currently running."
