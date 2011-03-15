@@ -65,7 +65,13 @@
   "If the pomfile describes a not already open project, a buffer
 will be created containing a description of the project and the
 associated assets. An erlang node will be started to upload the modules to, enableing distel to do its job. Automatic recompilation on saving erlang sources in that project is activated."
-  (interactive "FPOM-File: ")
+  (interactive 
+   (let ((pom-file 
+          (read-file-name "POM to open: " 
+                          (file-name-directory buffer-file-name)
+                          (erl-mvn-find-pom (file-name-directory buffer-file-name))
+                          'confirm)))
+     (list (file-truename pom-file))))
   (let ((pom-file (file-truename pom-file)))
     (let* ((artifact-id (erl-mvn-pom-lookup pom-file 'artifactId))
 	   (node-name (erl-mvn-make-node-name artifact-id)))
@@ -90,6 +96,10 @@ associated assets. An erlang node will be started to upload the modules to, enab
 (defun erl-mvn-setup()
   "Adds the compile function to the save hooks of erlang files."
   (interactive)
+  (setq erl-mvn-compilation-result-overlays 'nil)
+  (make-variable-buffer-local 'erl-mvn-compilation-result-overlays)
+  (setq erl-mvn-erlang-source-file "")
+  (make-variable-buffer-local 'erl-mvn-erlang-source-file)
   (add-hook 
    'erlang-mode-hook
    (lambda ()
@@ -327,7 +337,7 @@ actually be loaded and is checked only for errors and warnings"
        (node-name (erl-mvn-make-node-name artifact-id))
        (node (make-symbol node-name))
        (erl-popup-on-output-old erl-popup-on-output))
-
+    (setq erl-mvn-erlang-source-file source-file)
     (setq erl-popup-on-output nil)
     (cd (file-name-directory pom-file))
     (make-directory output-dir 'parents)
@@ -341,7 +351,7 @@ actually be loaded and is checked only for errors and warnings"
        (lambda (result) 
 	 (mcase result
 	   
-	   (['ok module warnings] 		
+	   (['ok module warnings]
 	    (setq warnings-r warnings)
 	    (setq errors-r '())
 	    (erl-mvn-show-compilation-results '() warnings erl-source-buffer)
@@ -477,27 +487,16 @@ font-lock-warning-face on each line in the buffer, after removing
 all exiting warning face properties."
   (save-excursion
     (with-current-buffer buffer
-      (let ((was-modified (buffer-modified-p)))
-	(remove-text-properties (point-min) 
-				(point-max) 
-				'(font-lock-face font-lock-warning-face))
-	(remove-text-properties (point-min) 
-				(point-max) 
-				'(help-echo nil))
-	(font-lock-fontify-buffer)
-	(mapcar
-	 (lambda (e)
-	   (mlet (file line reason) e
-	     (if (string= file buffer-file-name)
-		 (mlet (start-pos end-pos) (erl-mvn-get-line-pos line)
-		   (add-text-properties start-pos
-					end-pos 
-                                      '(font-lock-face font-lock-warning-face))
-		   (add-text-properties start-pos
-					end-pos 
-					`(help-echo  ,(format "Problem: %s" reason)))))))
-         lines)
-	(set-buffer-modified-p was-modified)))))
+      (remove-overlays)
+      (mapcar
+       (lambda (e)
+         (mlet (file line reason) e
+           (if (string= file erl-mvn-erlang-source-file)
+               (mlet (start-pos end-pos) (erl-mvn-get-line-pos line)
+                 (let ((ov (make-overlay start-pos end-pos)))
+                   (overlay-put ov 'font-lock-face 'font-lock-warning-face)
+                   (overlay-put ov 'help-echo  (format "Problem: %s" reason)))))))
+       lines))))
 
 (defun erl-mvn-lists-join(lists)
   "Private function. Joins a list of lists to a list: ((a b
