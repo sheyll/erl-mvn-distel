@@ -52,10 +52,10 @@
 (defvar erl-mvn-open-projects nil
   "Contains a list of buffers representing maven erlang projects. Each erlang maven project has its own erlang test node.")
 
-;(defvar erl-mvn-erl-source-path
-;  (file-truename
-;   (file-name-directory (or (locate-library "erl-mvn") load-file-name)))
-;   "Path to the erlang sources.")
+(defvar erl-mvn-erl-source-path
+  (file-truename
+   (file-name-directory (or (locate-library "erl-mvn") load-file-name)))
+   "Path to the erlang sources shipped with erl-mvn..")
 
 ;; ----------------------------------------------------------------------
 ;;  Startup and shutdown functions.

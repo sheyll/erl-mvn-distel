@@ -1,8 +1,44 @@
 TODOs
 -----
 
-* abstract artifact-id away, using a function "erl-mvn-get-project-id pom-file"
+* load erlang modules of erl-mvn into every erlang node
 
-* add (error ...) where appropriate
+* add eunit integration: run current test 
+
+* switching between test and source
+
+* assure the kill stays clean
+
+* add erl-mvn-erlang-source minor mode that has:
+  * goto test
+  * run test
+  * show pom
+  * run maven build
+  * compile file
+
+* add erl-mvn-erlang-test-source minor mode that has:
+  * goto source
+  * run tests
+  * run test under point
+
+* major mode for poms:
+  - shows artifact, group id and version
+  - coupled with open/close project functions
+  - runs maven
+  - shell to erlang node
+  - shows all sources and test sources
+  - shows dependencies
+  - provide a search local dependend project
+  - add supervisors, gen_servers, etc... from templates, including unit tests
+  - run all tests
+  - show all tests
+  
+* minor mode for gen_* modules
+  - create cast
+  - create call
+
+* extend project identifaction mechanism replacing the ubiquitous artifactid by a triple of groupid, artifactid, verion(GAV) 
+
+* improve error handling where appropriate
 
 
