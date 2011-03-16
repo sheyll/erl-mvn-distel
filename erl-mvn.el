@@ -114,10 +114,11 @@ associated assets. An erlang node will be started to upload the modules to, enab
 
 (defun erl-mvn-post-command-hook()
   "Activates auto-compilation of erlang buffers, and updates distel variables to contain the erlang node of the project the current file belongs to." 
-  (cond ((not (equal erl-mvn-current-buffer (current-buffer)))
+  (cond ((and (not (minibufferp))
+	      (not (equal erl-mvn-current-buffer (current-buffer))))
+	 (setq erl-mvn-current-buffer (current-buffer))
          (if (erl-mvn-is-relevant-erl-buffer)
-             (progn
-               (setq erl-mvn-current-buffer (current-buffer))
+             (progn               
                (erl-mvn-after-change 0 0 0)
                (erl-mvn-update-distel-settings))))))
 
@@ -132,7 +133,7 @@ it is reset whenever the user issues any command. When the timer elapses erl-mvn
   (if erl-mvn-current-recompilation-timer
       (cancel-timer erl-mvn-current-recompilation-timer))
   (setq erl-mvn-current-recompilation-timer
-	(run-at-time "2 sec" 'nil (function erl-mvn-compile-timer-elapsed))))
+	(run-at-time "1 sec" 'nil (function erl-mvn-compile-timer-elapsed))))
 
 (defun erl-mvn-compile-timer-elapsed()
   "Calls erl-mvn-erl-buffer-saved, and on the next command that is issued, the timer is started again."
@@ -150,23 +151,30 @@ it is reset whenever the user issues any command. When the timer elapses erl-mvn
 (defun erl-mvn-is-relevant-erl-buffer()
   "Private function. Determines if the current buffer contains
 erlang code managed by the current node."
-  (if (not (member (current-buffer) erl-mvn-irrelevant-buffers))
-      (if (not
-	   (if (and buffer-file-name
-		    (string-match "^.+\.erl$" buffer-file-name))
-	       (let* ((fn buffer-file-name)
-		      (fn-dir (file-name-directory fn))
-		      (pom-file (erl-mvn-find-pom fn))
-		      (artifact-id (erl-mvn-pom-lookup pom-file 'artifactId))
-		      (src-dir (cadr (assoc artifact-id erl-mvn-source-paths)))
-		      (test-src-dir (cadr (assoc artifact-id erl-mvn-test-source-paths))))
-		 (and (member artifact-id erl-mvn-open-projects)
-		      (or (string= src-dir fn-dir)
-			  (string= test-src-dir fn-dir))))))
-	  (progn
-	    (add-to-list 'erl-mvn-irrelevant-buffers (current-buffer))
-	    'nil)
-	't)))
+  (if (and (not (minibufferp))
+	   (not (member (current-buffer) erl-mvn-irrelevant-buffers)))
+      (let ((is-relevant 
+	     (if (and buffer-file-name
+		      (string-match "^.+\.erl$" buffer-file-name))
+		 (let* ((fn buffer-file-name)
+			(fn-dir (file-name-directory fn))
+			(pom-file (erl-mvn-find-pom fn)))
+		   (if pom-file
+		       (let*
+			   ((artifact-id (erl-mvn-pom-lookup pom-file 'artifactId))
+			    (src-dir 
+			     (cadr (assoc artifact-id erl-mvn-source-paths)))
+			    (test-src-dir 
+			     (cadr (assoc artifact-id erl-mvn-test-source-paths))))
+			 (and (member artifact-id erl-mvn-open-projects)
+			      (or (string= src-dir fn-dir)
+				  (string= test-src-dir fn-dir)))))))))
+	(if (not is-relevant)
+	    (progn
+	      (if (buffer-live-p (current-buffer))
+		  (add-to-list 'erl-mvn-irrelevant-buffers (current-buffer)))
+	      'nil)
+	  't))))
         
 (defun erl-mvn-shutdown()
   "Stops the erlang nodes currently running."
@@ -263,7 +271,7 @@ an erlang project."
 
 (defun erl-mvn-find-pom(fn)
   "Private function. Searches for a file called pom.xml in the
-parent directories of fn"
+parent directories of fn, returns nil if the pom was not found"
   (let ((dir (file-name-directory fn)))
     (while (and (not (file-exists-p (concat dir "/pom.xml")))
                 (not (equal dir (file-truename (concat dir "/..")))))
@@ -272,7 +280,7 @@ parent directories of fn"
       (if (not (file-exists-p pom))
           (progn 
             (message "No pom.xml found")
-            "")
+            'nil)
         pom))))
 
 (defun erl-mvn-pom-lookup(pom tag)
