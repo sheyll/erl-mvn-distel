@@ -109,20 +109,22 @@ associated assets. An erlang node will be started to upload the modules to, enab
    (lambda ()
      (add-hook 'after-save-hook 
 	       (function erl-mvn-erl-buffer-saved))))
-  (add-hook 'post-command-hook 
-	    (lambda ()
-	      (cond ((not (equal erl-mvn-current-buffer (current-buffer)))
-		     (if (erl-mvn-is-relevant-erl-buffer)
-			 (progn
-			   (setq erl-mvn-current-buffer (current-buffer))
-			   (erl-mvn-start-buffer-change-timer)
-			   (erl-mvn-update-distel-settings)))))))
+  (add-hook 'post-command-hook (function erl-mvn-post-command-hook))
   (add-to-list 'after-change-functions (function erl-mvn-after-change)))
 
+(defun erl-mvn-post-command-hook()
+  "Activates auto-compilation of erlang buffers, and updates distel variables to contain the erlang node of the project the current file belongs to." 
+  (cond ((not (equal erl-mvn-current-buffer (current-buffer)))
+         (if (erl-mvn-is-relevant-erl-buffer)
+             (progn
+               (setq erl-mvn-current-buffer (current-buffer))
+               (erl-mvn-after-change 0 0 0)
+               (erl-mvn-update-distel-settings))))))
 
 (defun erl-mvn-after-change(beginning end old-length)
   "Reset the compilation timer"
-  (erl-mvn-start-buffer-change-timer))
+  (if (erl-mvn-is-relevant-erl-buffer)
+      (erl-mvn-start-buffer-change-timer)))
 
 (defun erl-mvn-start-buffer-change-timer()
   "Starts a timer that waits for two seconds,
