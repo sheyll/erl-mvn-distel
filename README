@@ -16,7 +16,7 @@ Basic Usage
 
 To make erl-mvn aware of a maven project, open a source file and run 
 
-    M-x erl-mvn-add-current-buffer-project
+    M-x erl-mvn-open-project
 
 After that saving a source file in a source directory of a maven project added that way,
 causes it to be compiled using the build information returned by the maven run.
@@ -24,7 +24,7 @@ causes it to be compiled using the build information returned by the maven run.
 The erlang maven plugin is instructed to upload all modules including test modules and the 
 project dependencies to the erlang node started by erl-mvn.
 
-Several other functions exist. Please so a 
+Several other functions exist. Please do a 
 
     M-x erl-mvn-<TAB> 
 

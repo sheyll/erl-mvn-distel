@@ -1,6 +1,12 @@
 TODOs
 -----
 
+* add default entry when doing compile project maven
+
+* add "g" command to rerun maven in maven ouptput buffer
+
+* make erlang node buffer a full fledged erl shell
+
 * load erlang modules of erl-mvn into every erlang node
 
 * add eunit integration: run current test 

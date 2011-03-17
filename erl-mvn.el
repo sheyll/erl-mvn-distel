@@ -102,49 +102,43 @@ associated assets. An erlang node will be started to upload the modules to, enab
   (setq erl-mvn-erlang-source-file "")
   (make-variable-buffer-local 'erl-mvn-erlang-source-file)
   (setq erl-mvn-current-buffer 'nil)
-  (setq erl-mvn-current-recompilation-timer 'nil)
   (setq erl-mvn-irrelevant-buffers 'nil)
+  (setq erl-mvn-is-dirty 'nil)
+  (make-variable-buffer-local 'erl-mvn-is-dirty)
+  ; hooks
   (add-hook 
    'erlang-mode-hook
    (lambda ()
      (add-hook 'after-save-hook 
 	       (function erl-mvn-erl-buffer-saved))))
-  (add-hook 'post-command-hook (function erl-mvn-post-command-hook))
-  (add-to-list 'after-change-functions (function erl-mvn-after-change)))
+  (add-hook 'pre-command-hook (function erl-mvn-update-distel-node))
+  (add-to-list 'after-change-functions (function erl-mvn-mark-buffer-dirty))
+  (run-with-idle-timer 1 't (function erl-mvn-check-current-buffer)))
 
-(defun erl-mvn-post-command-hook()
-  "Activates auto-compilation of erlang buffers, and updates distel variables to contain the erlang node of the project the current file belongs to." 
+(defun erl-mvn-update-distel-node()
+  "Updates distel variables to contain the erlang node of the project the current file belongs to." 
   (cond ((and (not (minibufferp))
 	      (not (equal erl-mvn-current-buffer (current-buffer))))
 	 (setq erl-mvn-current-buffer (current-buffer))
          (if (erl-mvn-is-relevant-erl-buffer)
-             (progn               
-               (erl-mvn-after-change 0 0 0)
-               (erl-mvn-update-distel-settings))))))
+	     (erl-mvn-update-distel-settings)))))
 
-(defun erl-mvn-after-change(beginning end old-length)
-  "Reset the compilation timer"
-  (if (erl-mvn-is-relevant-erl-buffer)
-      (erl-mvn-start-buffer-change-timer)))
+(defun erl-mvn-check-current-buffer ()
+  "Will compile the current buffer and highlight all compilation errors."
+  (cond (erl-mvn-is-dirty
+	 (setq erl-mvn-is-dirty 'nil)
+	 (cond ((erl-mvn-is-relevant-erl-buffer)
+		(erl-mvn-compile-buffer 'f))))))
 
-(defun erl-mvn-start-buffer-change-timer()
-  "Starts a timer that waits for two seconds,
-it is reset whenever the user issues any command. When the timer elapses erl-mvn-compile-timer-elapsed is called."
-  (if erl-mvn-current-recompilation-timer
-      (cancel-timer erl-mvn-current-recompilation-timer))
-  (setq erl-mvn-current-recompilation-timer
-	(run-at-time "1 sec" 'nil (function erl-mvn-compile-timer-elapsed))))
-
-(defun erl-mvn-compile-timer-elapsed()
-  "Calls erl-mvn-erl-buffer-saved, and on the next command that is issued, the timer is started again."
-  (if (erl-mvn-is-relevant-erl-buffer)
-      (erl-mvn-compile-buffer 'nil)))
-
+(defun erl-mvn-mark-buffer-dirty(beginning end old-length)
+  "Marks a buffer dirty. This is interpreted by the idle timer callback that decides wether a buffer needs recompilation."
+  (setq erl-mvn-is-dirty 't))
 
 (defun erl-mvn-erl-buffer-saved()
   "When a buffer is saved it is automatically compiled. Compiler errors and
  warnings are displayed in a seperate buffer"
   (interactive)
+  (setq erl-mvn-is-dirty 'nil)
   (if (erl-mvn-is-relevant-erl-buffer)
       (erl-mvn-compile-buffer 't)))
 
@@ -194,7 +188,7 @@ erlang code managed by the current node."
   "Private function. Invokes maven to compile an erlang project
 defined by a pom file. Extracts source folders, include- and
 code_paths. If a build fails all variables are reset."
-  (interactive "FPOM file of project to compile with maven: ")
+;  (interactive "FPOM file of project to compile with maven: ")
   (let ((pom-file (file-truename pom-file)))
     (let ((artifact-id  (erl-mvn-pom-lookup pom-file 'artifactId))
 	  (packaging (erl-mvn-pom-lookup pom-file 'packaging))
