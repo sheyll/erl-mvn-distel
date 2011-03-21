@@ -57,42 +57,104 @@
    (file-name-directory (or (locate-library "erl-mvn") load-file-name)))
    "Path to the erlang sources shipped with erl-mvn..")
 
+(defvar erl-mvn-mode-map 
+  '(keymap 
+    (menu-bar . 
+	      (keymap 
+	       (erl-mvn "Maven" . 
+			(keymap 
+			 (compile . 
+				  (menu-item "Compile" 
+					     erl-mvn-compile-current-project))
+			 (sep . (menu-item "--"))
+			 (close . 
+				(menu-item "Shutdown Erlang Node" 
+					   erl-mvn-close-current-project))
+			 )))))
+  "Erl Mvn minor mode keymap.")
+
+;; ----------------------------------------------------------------------
+;; Erlang source buffer minor mode
+;; ----------------------------------------------------------------------
+(define-minor-mode erl-mvn-mode
+  "Toggle Erlang-Maven integration mode.
+With no argument,  this command toggles the mode.
+Non-null prefix argument turns on the mode.
+Null prefix argument turns off the mode.
+"
+  ; initial value
+  nil
+  ; mode line indicator
+  " Erl-Mvn"
+  ; mode bindings
+  erl-mvn-mode-map)
+
 ;; ----------------------------------------------------------------------
 ;;  Startup and shutdown functions.
 ;; ----------------------------------------------------------------------
 
-(defun erl-mvn-open-project(pom-file)
+(defun erl-mvn-compile-project(pom-file)
+  "Asks for a pom to open. And compile the project using maven."
+  (interactive 
+     (let ((pom-file 
+	    (read-file-name "Open POM: " 
+			    (file-name-directory buffer-file-name)
+			    (erl-mvn-find-pom (file-name-directory buffer-file-name))
+			    'confirm)))
+       (list (file-truename pom-file))))
+  (let ((pom-file 	 
+	  (if pom-file 
+	      (file-truename pom-file)
+	    (erl-mvn-find-pom (file-name-directory buffer-file-name)))))
+    (erl-mvn-start-erlang-and-compile-project pom-file)))
+
+(defun erl-mvn-compile-current-project()
+  "Compiles the project that the current buffer belongs to using maven."
+  (interactive)
+  (let ((pom-file (erl-mvn-find-pom (file-name-directory buffer-file-name))))
+    (erl-mvn-start-erlang-and-compile-project pom-file)))
+
+(defun erl-mvn-start-erlang-and-compile-project(pom-file)
   "If the pomfile describes a not already open project, a buffer
 will be created containing a description of the project and the
-associated assets. An erlang node will be started to upload the modules to, enableing distel to do its job. Automatic recompilation on saving erlang sources in that project is activated."
-  (interactive 
-   (let ((pom-file 
-          (read-file-name "POM to open: " 
-                          (file-name-directory buffer-file-name)
-                          (erl-mvn-find-pom (file-name-directory buffer-file-name))
-                          'confirm)))
-     (list (file-truename pom-file))))
-  (let ((pom-file (file-truename pom-file)))
-    (let* ((artifact-id (erl-mvn-pom-lookup pom-file 'artifactId))
-	   (node-name (erl-mvn-make-node-name artifact-id)))
-      (if (not (erl-mvn-is-maven-erlang-project pom-file))
-	  (message "No maven-erlang project found in %s" proj-dir)
-	(progn
-	  (erl-mvn-start-node node-name)
-	  (add-to-list 'erl-mvn-open-projects artifact-id)
-	  (erl-mvn-compile-project-maven pom-file)))))
-  (setq erl-mvn-irrelevant-buffers 'nil))
+associated assets. 
 
-(defun erl-mvn-close-project(artifact-id)
-  "Closes a project opened with erl-mvn-open-project. Removes all processes and buffers associated to the artifact-id."
-  (interactive "sArtifactId of project to close: ")
-  (setq erl-mvn-open-projects (delete artifact-id erl-mvn-open-projects))
-  (let* ((node-name (erl-mvn-make-node-name artifact-id))
+An erlang node will be started, and maven compile will be executed
+with the erlang node as target for module upload. 
+
+Distel modules are deployed to the erlang node, and all distel function 
+should work properly.
+
+Automatic recompilation on saving erlang sources in that project is activated."
+    (if pom-file
+	(let* ((artifact-id (erl-mvn-pom-lookup pom-file 'artifactId))
+	       (node-name (erl-mvn-make-node-name artifact-id)))
+	  (if (not (erl-mvn-is-maven-erlang-project pom-file))
+	      (message "No maven-erlang project found in %s" proj-dir)
+	    (progn
+	      (erl-mvn-start-node node-name)
+	      (add-to-list 'erl-mvn-open-projects artifact-id)
+	      (erl-mvn-compile-project-maven pom-file)))
+	  (setq erl-mvn-irrelevant-buffers 'nil)
+	  (mapcar 
+	   'erl-mvn-define-mode-line
+	   (buffer-list)))))
+
+(defun erl-mvn-close-current-project()
+  "Closes a project opened with erl-mvn-open-project. Removes all processes and buffers associated to the artifact-id of the project. The project that is closed is determined by the current buffer."
+  (interactive)
+  (let* ((pom (erl-mvn-find-pom (file-name-directory buffer-file-name)))
+	 (artifact-id (erl-mvn-pom-lookup pom 'artifactId)))
+    (setq erl-mvn-open-projects (delete artifact-id erl-mvn-open-projects))
+    (let* ((node-name (erl-mvn-make-node-name artifact-id))
 	 (erl-buf (erl-mvn-make-buffer-name node-name)))
-    (cond ((erl-mvn-node-running node-name)
-	   (delete-process erl-buf)
-	   (kill-buffer erl-buf))))
-  (kill-buffer (erl-mvn-make-mvn-output-buffer-name artifact-id)))
+      (cond ((erl-mvn-node-running node-name)
+	     (delete-process erl-buf)
+	     (kill-buffer erl-buf))))
+    (kill-buffer (erl-mvn-make-mvn-output-buffer-name artifact-id))
+    (mapcar 
+     'erl-mvn-define-mode-line
+     (buffer-list))))
 
 (defun erl-mvn-setup()
   "Adds the compile function to the save hooks of erlang files."
@@ -102,49 +164,65 @@ associated assets. An erlang node will be started to upload the modules to, enab
   (setq erl-mvn-erlang-source-file "")
   (make-variable-buffer-local 'erl-mvn-erlang-source-file)
   (setq erl-mvn-current-buffer 'nil)
-  (setq erl-mvn-current-recompilation-timer 'nil)
   (setq erl-mvn-irrelevant-buffers 'nil)
+  (setq erl-mvn-is-dirty 'nil)
+  (make-variable-buffer-local 'erl-mvn-is-dirty)
+  ; hooks
   (add-hook 
    'erlang-mode-hook
    (lambda ()
-     (add-hook 'after-save-hook 
-	       (function erl-mvn-erl-buffer-saved))))
-  (add-hook 'post-command-hook (function erl-mvn-post-command-hook))
-  (add-to-list 'after-change-functions (function erl-mvn-after-change)))
+     (let ((pom (erl-mvn-find-pom (file-name-directory buffer-file-name))))
+       (cond (pom
+	      (erl-mvn-mode 1)
+	      (erl-mvn-define-mode-line (current-buffer)))))))
+  (add-hook 'after-save-hook 
+	    (function erl-mvn-erl-buffer-saved))
+  (add-hook 'pre-command-hook (function erl-mvn-update-distel-node))
+  (add-to-list 'after-change-functions (function erl-mvn-mark-buffer-dirty))
+  (run-with-idle-timer 1 't (function erl-mvn-check-current-buffer)))
 
-(defun erl-mvn-post-command-hook()
-  "Activates auto-compilation of erlang buffers, and updates distel variables to contain the erlang node of the project the current file belongs to." 
+(defun erl-mvn-define-mode-line(buffer)
+  "Private function. Sets the header line and minor mode menu."
+  (with-current-buffer buffer
+    (if buffer-file-name
+	(let ((pom (erl-mvn-find-pom (file-name-directory buffer-file-name))))
+	  (cond (pom
+	      (setq header-line-format 
+		    (concat 
+		     (erl-mvn-pom-lookup  pom 'groupId)
+		     "/"
+		     (propertize (erl-mvn-pom-lookup  pom 'artifactId) 'face 'bold)
+		     "  "
+		     (erl-mvn-pom-lookup  pom 'version)
+		     (if (erl-mvn-is-relevant-erl-buffer)
+			 (propertize "  *ERLANG NODE ACTIVE*" 'face 'bold)
+		       (propertize " (click on Erl-Mvn -> Compile) " 'face 'italic))))
+	      (force-mode-line-update)))))))
+
+(defun erl-mvn-update-distel-node()
+  "Updates distel variables to contain the erlang node of the project the current file belongs to." 
   (cond ((and (not (minibufferp))
 	      (not (equal erl-mvn-current-buffer (current-buffer))))
 	 (setq erl-mvn-current-buffer (current-buffer))
          (if (erl-mvn-is-relevant-erl-buffer)
-             (progn               
-               (erl-mvn-after-change 0 0 0)
-               (erl-mvn-update-distel-settings))))))
+	     (erl-mvn-update-distel-settings)))))
 
-(defun erl-mvn-after-change(beginning end old-length)
-  "Reset the compilation timer"
-  (if (erl-mvn-is-relevant-erl-buffer)
-      (erl-mvn-start-buffer-change-timer)))
+(defun erl-mvn-check-current-buffer ()
+  "Will compile the current buffer and highlight all compilation errors."
+  (cond (erl-mvn-is-dirty
+	 (setq erl-mvn-is-dirty 'nil)
+	 (cond ((erl-mvn-is-relevant-erl-buffer)
+		(erl-mvn-compile-buffer 'f))))))
 
-(defun erl-mvn-start-buffer-change-timer()
-  "Starts a timer that waits for two seconds,
-it is reset whenever the user issues any command. When the timer elapses erl-mvn-compile-timer-elapsed is called."
-  (if erl-mvn-current-recompilation-timer
-      (cancel-timer erl-mvn-current-recompilation-timer))
-  (setq erl-mvn-current-recompilation-timer
-	(run-at-time "1 sec" 'nil (function erl-mvn-compile-timer-elapsed))))
-
-(defun erl-mvn-compile-timer-elapsed()
-  "Calls erl-mvn-erl-buffer-saved, and on the next command that is issued, the timer is started again."
-  (if (erl-mvn-is-relevant-erl-buffer)
-      (erl-mvn-compile-buffer 'nil)))
-
+(defun erl-mvn-mark-buffer-dirty(beginning end old-length)
+  "Marks a buffer dirty. This is interpreted by the idle timer callback that decides wether a buffer needs recompilation."
+  (setq erl-mvn-is-dirty 't))
 
 (defun erl-mvn-erl-buffer-saved()
   "When a buffer is saved it is automatically compiled. Compiler errors and
  warnings are displayed in a seperate buffer"
   (interactive)
+  (setq erl-mvn-is-dirty 'nil)
   (if (erl-mvn-is-relevant-erl-buffer)
       (erl-mvn-compile-buffer 't)))
 
@@ -175,16 +253,6 @@ erlang code managed by the current node."
 		  (add-to-list 'erl-mvn-irrelevant-buffers (current-buffer)))
 	      'nil)
 	  't))))
-        
-(defun erl-mvn-shutdown()
-  "Stops the erlang nodes currently running."
-  (interactive)  
-  (setq erl-mvn-source-paths nil)
-  (setq erl-mvn-test-source-paths nil)
-  (setq erl-mvn-code-paths nil)
-  (setq erl-mvn-include-paths nil)
-  (mapcar (function erl-mvn-close-project) 
-	  erl-mvn-open-projects))
 
 ;; ----------------------------------------------------------------------
 ;;  Functions for maven interaction
@@ -193,8 +261,7 @@ erlang code managed by the current node."
 (defun erl-mvn-compile-project-maven(pom-file)
   "Private function. Invokes maven to compile an erlang project
 defined by a pom file. Extracts source folders, include- and
-code_paths. If a build fails all variables are reset."
-  (interactive "FPOM file of project to compile with maven: ")
+code_paths."
   (let ((pom-file (file-truename pom-file)))
     (let ((artifact-id  (erl-mvn-pom-lookup pom-file 'artifactId))
 	  (packaging (erl-mvn-pom-lookup pom-file 'packaging))

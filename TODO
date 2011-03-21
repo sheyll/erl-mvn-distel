@@ -1,6 +1,8 @@
 TODOs
 -----
 
+* make erlang node buffer a full fledged erl shell
+
 * load erlang modules of erl-mvn into every erlang node
 
 * add eunit integration: run current test 
@@ -9,12 +11,21 @@ TODOs
 
 * assure the kill stays clean
 
+* add current artifact to buffer status bar
+
 * add erl-mvn-erlang-source minor mode that has:
+  -- current buffer --
   * goto test
-  * run test
-  * show pom
-  * run maven build
   * compile file
+  * show compilation results
+  -- current project --
+  * goto pom
+  * show erlang output
+  * run maven build
+  * show maven output
+  -- other projects
+  * goto source in project > [source files]
+  * goto dependend source > [projects > [sources]]
 
 * add erl-mvn-erlang-test-source minor mode that has:
   * goto source
