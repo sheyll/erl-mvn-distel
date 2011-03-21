@@ -320,9 +320,9 @@ buffer, so the user is able to follow the output."
                           't   ; redisplay
                           "-f" pom
                           (concat "-Dremote=" node-name)
+                          "-DwithDependencies=true"
                           "erlang:show-build-info"
-			  "erlang:upload-tests"
-                          "test-compile")
+			  "erlang:upload-tests")
             (setq buffer-read-only 't)
             (erl-mvn-to-lines (buffer-substring-no-properties start (point-max)))))))))
 
@@ -390,7 +390,8 @@ can be used by maven for tests and debug code"
 		     erl-mvn-erlang-executable
 		     "-name" node-name)
       (sleep-for 5)
-      (erl-mvn-distel-connect-node node-name))))
+      ;; upload erl_mvn_eunit 
+      (erl-mvn-prepare-erlang-node node-name))))
 
 (defun erl-mvn-node-running(node-name)
   "Private function. Returns 't if a an erlang process was
@@ -398,12 +399,14 @@ already started for node-name, by checking wether a buffer of
 that name exits"
   (not (eq 'nil (member (erl-mvn-make-buffer-name node-name) (mapcar (function buffer-name) (buffer-list))))))
 
-(defun erl-mvn-distel-connect-node (node-name) 
+(defun erl-mvn-prepare-erlang-node (node-name) 
   "Private function. Connectes distel to a node identified by an
-erlang long node name string."
+erlang long node name string, and uploads all erlang modules necessary for erl-mvn, currently only the eunit execution glue-code."
   (let ((n (make-symbol node-name)))
-    (setq erl-nodename-cache n)
-    (erl-ping n)))
+    (setq erl-nodename-cache n)    
+    (erl-ping n)
+    (sleep-for 3)
+    (erpc n 'c 'c (list (concat erl-mvn-erl-source-path "/erl_mvn_eunit.erl")))))
              
 (defun erl-mvn-make-node-name(str)
   "Private function. Creates a long erlang node name from a string."
@@ -437,7 +440,7 @@ actually be loaded and is checked only for errors and warnings"
   (setq erl-source-buffer (current-buffer))
   (let* 
       ((fn (file-truename (buffer-file-name)))
-       (pom-file (erl-mvn-find-pom fn))
+       (pom-file (erl-mvn-find-pom fn))       
        (output-dir
 	(file-truename 
 	 (concat (file-name-directory pom-file) "target/emacs-compiled/")))
@@ -454,9 +457,12 @@ actually be loaded and is checked only for errors and warnings"
     (cd (file-name-directory pom-file))
     (make-directory output-dir 'parents)
     (write-region (point-min) (point-max) source-file)
-    (erpc node 'code 'add_patha (list output-dir))
+
     (erpc node 'code 'add_paths
 	  (cdr (assoc artifact-id erl-mvn-code-paths)))
+
+    (erpc node 'code 'add_patha (list output-dir))
+
     (message "Compiling %s from project %s" fn artifact-id)
     (let ((res-module  'nil))
       (erl-rpc 
@@ -489,8 +495,11 @@ actually be loaded and is checked only for errors and warnings"
       (cond (res-module
 	     (message "Successfully compiled module: %s." res-module)
 	     (cond (load-module
+		    (erpc node 'code 'delete (list res-module))
 		    (erpc node 'code 'purge (list res-module))
-		    (erpc node 'code 'load_file (list res-module))		      
+		    (erpc node 'code 'delete (list res-module))
+		    (erpc node 'code 'purge (list res-module))
+		    (erpc node 'code 'load_file (list res-module))
 		    (message "Successfully loaded module %s into node %s." res-module node))))))
     (setq erl-popup-on-output erl-popup-on-output-old))
   (list warnings-r errors-r))

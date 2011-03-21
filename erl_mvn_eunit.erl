@@ -8,12 +8,13 @@
 	 handle_begin/3,
 	 handle_end/3,
 	 handle_cancel/3,
-	 terminate/2]).
+	 terminate/2,
+         test_module/1]).
 
 
-run_test() ->
+test_module(Module) ->
     Tty = {report, {?MODULE, [{report_to, self()}]}},
-    Out = try eunit:test(Tests, [Surefire, Tty]) of
+    Out = try eunit:test(Module, [Tty]) of
               _ -> []
           catch
               Class:Exception ->
