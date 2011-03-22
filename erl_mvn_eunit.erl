@@ -9,12 +9,15 @@
 	 handle_end/3,
 	 handle_cancel/3,
 	 terminate/2,
-         test_module/1]).
+         run_test_file_line/2]).
 
 
-test_module(Module) ->
+run_test(Test) ->
+    io:format("======================================================================~n"),
+    io:format("==   Running Test: ~w~n", [Test]),
+    io:format("======================================================================~n"),
     Tty = {report, {?MODULE, [{report_to, self()}]}},
-    Out = try eunit:test(Module, [Tty]) of
+    Out = try eunit:test(Test, [Tty]) of
               _ -> []
           catch
               Class:Exception ->
@@ -26,6 +29,14 @@ test_module(Module) ->
             {Level, Captured ++ Out}
     end.
 
+run_test_file_line(SourceFile, Line) ->
+    case erl_mvn_source_utils:get_test_for_line(SourceFile, Line) of
+        {ok, Test} ->
+            run_test(Test);
+        _ ->
+            []
+    end.
+                
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% record definition section

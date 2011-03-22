@@ -406,7 +406,9 @@ erlang long node name string, and uploads all erlang modules necessary for erl-m
     (setq erl-nodename-cache n)    
     (erl-ping n)
     (sleep-for 3)
-    (erpc n 'c 'c (list (concat erl-mvn-erl-source-path "/erl_mvn_eunit.erl")))))
+    (erpc n 'c 'c (list (concat erl-mvn-erl-source-path "/erl_mvn_eunit.erl")))
+    (erpc n 'c 'c (list (concat erl-mvn-erl-source-path "/erl_mvn_source_utils.erl")))
+    ))
              
 (defun erl-mvn-make-node-name(str)
   "Private function. Creates a long erlang node name from a string."
