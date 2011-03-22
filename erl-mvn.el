@@ -63,10 +63,14 @@
 	      (keymap 
 	       (erl-mvn "Maven" . 
 			(keymap 
+			 (toggle-source-test . 
+				  (menu-item "Source <-> Test" 
+					     erl-mvn-toggle-source-test))
+
+			 (sep . (menu-item "--"))
 			 (compile . 
 				  (menu-item "Compile" 
 					     erl-mvn-compile-current-project))
-			 (sep . (menu-item "--"))
 			 (close . 
 				(menu-item "Shutdown Erlang Node" 
 					   erl-mvn-close-current-project))
@@ -93,6 +97,20 @@ Null prefix argument turns off the mode.
 ;;  Startup and shutdown functions.
 ;; ----------------------------------------------------------------------
 
+(defun erl-mvn-toggle-source-test
+  "If the buffer is a relevant erlang buffer open the appropriate test source, or
+if the buffer-file is in the test sources folder, visit the source."
+  (interactive)
+  (let*
+      ((src-dir 
+	(cadr (assoc erl-mvn-artifact-id erl-mvn-source-paths)))
+       (test-src-dir 
+	(cadr (assoc erl-mvn-artifact-id erl-mvn-test-source-paths)))
+       (fn-dir (file-name-directory buffer-file-name)))
+    (cond ((string= src-dir fn-dir)
+	   (let ((file-name-nondirectory buffer-file-name)
+	(string= test-src-dir fn-dir)))))))
+
 (defun erl-mvn-compile-project(pom-file)
   "Asks for a pom to open. And compile the project using maven."
   (interactive 
@@ -102,11 +120,7 @@ Null prefix argument turns off the mode.
 			    (erl-mvn-find-pom (file-name-directory buffer-file-name))
 			    'confirm)))
        (list (file-truename pom-file))))
-  (let ((pom-file 	 
-	  (if pom-file 
-	      (file-truename pom-file)
-	    (erl-mvn-find-pom (file-name-directory buffer-file-name)))))
-    (erl-mvn-start-erlang-and-compile-project pom-file)))
+  (erl-mvn-start-erlang-and-compile-project pom-file))
 
 (defun erl-mvn-compile-current-project()
   "Compiles the project that the current buffer belongs to using maven."
@@ -137,7 +151,7 @@ Automatic recompilation on saving erlang sources in that project is activated."
 	      (erl-mvn-compile-project-maven pom-file)))
 	  (setq erl-mvn-irrelevant-buffers 'nil)
 	  (mapcar 
-	   'erl-mvn-define-mode-line
+	   'erl-mvn-setup-buffer
 	   (buffer-list)))))
 
 (defun erl-mvn-close-current-project()
@@ -153,7 +167,7 @@ Automatic recompilation on saving erlang sources in that project is activated."
 	     (kill-buffer erl-buf))))
     (kill-buffer (erl-mvn-make-mvn-output-buffer-name artifact-id))
     (mapcar 
-     'erl-mvn-define-mode-line
+     'erl-mvn-setup-buffer
      (buffer-list))))
 
 (defun erl-mvn-setup()
@@ -161,12 +175,17 @@ Automatic recompilation on saving erlang sources in that project is activated."
   (interactive)
   (setq erl-mvn-compilation-result-overlays 'nil)
   (make-variable-buffer-local 'erl-mvn-compilation-result-overlays)
-  (setq erl-mvn-erlang-source-file "")
-  (make-variable-buffer-local 'erl-mvn-erlang-source-file)
+  (setq erl-mvn-tmp-source-file "")
+  (make-variable-buffer-local 'erl-mvn-tmp-source-file)
   (setq erl-mvn-current-buffer 'nil)
   (setq erl-mvn-irrelevant-buffers 'nil)
   (setq erl-mvn-is-dirty 'nil)
   (make-variable-buffer-local 'erl-mvn-is-dirty)
+  (setq erl-mvn-artifact-id 'nil)
+  (make-variable-buffer-local 'erl-mvn-artifact-id)
+  (setq erl-mvn-pom-file 'nil)
+  (make-variable-buffer-local 'erl-mvn-pom-file)
+
   ; hooks
   (add-hook 
    'erlang-mode-hook
@@ -174,30 +193,44 @@ Automatic recompilation on saving erlang sources in that project is activated."
      (let ((pom (erl-mvn-find-pom (file-name-directory buffer-file-name))))
        (cond (pom
 	      (erl-mvn-mode 1)
-	      (erl-mvn-define-mode-line (current-buffer)))))))
+	      (erl-mvn-setup-buffer (current-buffer)))))))
   (add-hook 'after-save-hook 
 	    (function erl-mvn-erl-buffer-saved))
   (add-hook 'pre-command-hook (function erl-mvn-update-distel-node))
   (add-to-list 'after-change-functions (function erl-mvn-mark-buffer-dirty))
   (run-with-idle-timer 1 't (function erl-mvn-check-current-buffer)))
 
-(defun erl-mvn-define-mode-line(buffer)
+(defun erl-mvn-setup-buffer(buffer)
   "Private function. Sets the header line and minor mode menu."
   (with-current-buffer buffer
     (if buffer-file-name
 	(let ((pom (erl-mvn-find-pom (file-name-directory buffer-file-name))))
 	  (cond (pom
-	      (setq header-line-format 
-		    (concat 
-		     (erl-mvn-pom-lookup  pom 'groupId)
-		     "/"
-		     (propertize (erl-mvn-pom-lookup  pom 'artifactId) 'face 'bold)
-		     "  "
-		     (erl-mvn-pom-lookup  pom 'version)
-		     (if (erl-mvn-is-relevant-erl-buffer)
-			 (propertize "  *ERLANG NODE ACTIVE*" 'face 'bold)
-		       (propertize " (click on Erl-Mvn -> Compile) " 'face 'italic))))
-	      (force-mode-line-update)))))))
+		 (let* ((ai (erl-mvn-pom-lookup  pom 'artifactId))
+			(output-dir
+			 (file-truename 
+			  (concat 
+			   (file-name-directory pom) 
+			   "target/emacs-compiled/")))
+			(source-file 
+			 (file-truename (concat 
+					 output-dir 
+					 (file-name-nondirectory buffer-file-name)))))
+		   (setq erl-mvn-artifact-id ai)
+		   (setq erl-mvn-pom-file pom)		   
+		   (setq erl-mvn-output-dir output-dir)
+		   (setq erl-mvn-tmp-source-file source-file)
+		   (setq header-line-format 
+			 (concat 
+			  (erl-mvn-pom-lookup  pom 'groupId)
+			  "/"
+			  (propertize erl-mvn-artifact-id 'face 'bold)
+			  "  "
+			  (erl-mvn-pom-lookup  pom 'version)
+			  (if (erl-mvn-is-relevant-erl-buffer)
+			      (propertize "  *ERLANG NODE ACTIVE*" 'face 'bold)
+			    (propertize " (click on Erl-Mvn -> Compile) " 'face 'italic))))
+		   (force-mode-line-update))))))))
 
 (defun erl-mvn-update-distel-node()
   "Updates distel variables to contain the erlang node of the project the current file belongs to." 
@@ -235,16 +268,14 @@ erlang code managed by the current node."
 	     (if (and buffer-file-name
 		      (string-match "^.+\.erl$" buffer-file-name))
 		 (let* ((fn buffer-file-name)
-			(fn-dir (file-name-directory fn))
-			(pom-file (erl-mvn-find-pom fn)))
-		   (if pom-file
+			(fn-dir (file-name-directory fn)))
+		   (if erl-mvn-pom-file
 		       (let*
-			   ((artifact-id (erl-mvn-pom-lookup pom-file 'artifactId))
-			    (src-dir 
-			     (cadr (assoc artifact-id erl-mvn-source-paths)))
+			   ((src-dir 
+			     (cadr (assoc erl-mvn-artifact-id erl-mvn-source-paths)))
 			    (test-src-dir 
-			     (cadr (assoc artifact-id erl-mvn-test-source-paths))))
-			 (and (member artifact-id erl-mvn-open-projects)
+			     (cadr (assoc erl-mvn-artifact-id erl-mvn-test-source-paths))))
+			 (and (member erl-mvn-artifact-id erl-mvn-open-projects)
 			      (or (string= src-dir fn-dir)
 				  (string= test-src-dir fn-dir)))))))))
 	(if (not is-relevant)
@@ -440,30 +471,23 @@ actually be loaded and is checked only for errors and warnings"
   (setq erl-source-buffer (current-buffer))
   (let* 
       ((fn (file-truename (buffer-file-name)))
-       (pom-file (erl-mvn-find-pom fn))       
-       (output-dir
-	(file-truename 
-	 (concat (file-name-directory pom-file) "target/emacs-compiled/")))
-       (source-file 
-	(file-truename (concat output-dir (file-name-nondirectory fn))))
-       (artifact-id (erl-mvn-pom-lookup pom-file 'artifactId))
        (warnings-r '())
        (errors-r '())
-       (node-name (erl-mvn-make-node-name artifact-id))
+       (node-name (erl-mvn-make-node-name erl-mvn-artifact-id))
        (node (make-symbol node-name))
        (erl-popup-on-output-old erl-popup-on-output))
-    (setq erl-mvn-erlang-source-file source-file)
+
     (setq erl-popup-on-output nil)
-    (cd (file-name-directory pom-file))
-    (make-directory output-dir 'parents)
-    (write-region (point-min) (point-max) source-file)
+    (cd (file-name-directory erl-mvn-pom-file))
+    (make-directory erl-mvn-output-dir 'parents)
+    (write-region (point-min) (point-max) erl-mvn-tmp-source-file)
 
     (erpc node 'code 'add_paths
-	  (cdr (assoc artifact-id erl-mvn-code-paths)))
+	  (cdr (assoc erl-mvn-artifact-id erl-mvn-code-paths)))
 
-    (erpc node 'code 'add_patha (list output-dir))
+    (erpc node 'code 'add_patha (list erl-mvn-output-dir))
 
-    (message "Compiling %s from project %s" fn artifact-id)
+    (message "Compiling %s from project %s" fn erl-mvn-artifact-id)
     (let ((res-module  'nil))
       (erl-rpc 
        (lambda (result) 
@@ -490,7 +514,9 @@ actually be loaded and is checked only for errors and warnings"
        'compile 
        'file 
        (cons source-file 
-	     (list (erl-mvn-get-erlang-compile-options artifact-id output-dir))))
+	     (list (erl-mvn-get-erlang-compile-options 
+		    erl-mvn-artifact-id 
+		    erl-mvn-output-dir))))
       
       (cond (res-module
 	     (message "Successfully compiled module: %s." res-module)
@@ -612,7 +638,7 @@ all exiting warning face properties."
       (mapcar
        (lambda (e)
          (mlet (file line reason) e
-           (if (string= file erl-mvn-erlang-source-file)
+           (if (string= file erl-mvn-tmp-source-file)
                (mlet (start-pos end-pos) (erl-mvn-get-line-pos line)
                  (let ((ov (make-overlay start-pos end-pos)))
                    (overlay-put ov 'font-lock-face 'font-lock-warning-face)
