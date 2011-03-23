@@ -19,6 +19,10 @@
  compilation results to popup everytime an error or warning was
  returned from an erlang buffer compilation")
 
+(defvar erl-mvn-popup-eunit-output 'nil
+  "Setting this to non nil will cause a buffer with the
+ eunit results to popup everytime tests were run.")
+
 (defconst erl-mvn-erlang-mvn-packaging-types '("erlang-otp" "erlang-std")
   "The packaging types that identify a project as erlang
   project")
@@ -62,15 +66,41 @@
     (menu-bar . 
 	      (keymap 
 	       (erl-mvn "Maven" . 
-			(keymap 
-			 (toggle-source-test . 
-				  (menu-item "Source <-> Test" 
-					     erl-mvn-toggle-source-test))
+			(keymap                          
 
-			 (sep . (menu-item "--"))
-			 (compile . 
-				  (menu-item "Compile" 
+			 (sep2 . (menu-item "Current Buffer:"))
+			 (toggle-source-test . 
+				  (menu-item "Switch Between Source <-> Test" 
+					     erl-mvn-toggle-source-test))
+			 (test-function . 
+				  (menu-item "Eunit-test Function" 
+					     erl-mvn-eunit-test-function))
+			 (test-module . 
+				  (menu-item "Eunit-test Module" 
+					     erl-mvn-eunit-test-module))
+                         (sep2e . (menu-item "--"))
+
+
+			 (sep1 . (menu-item "Maven:"))
+			 (mvn-install . 
+				  (menu-item "Maven Install" 
+					     erl-mvn-maven-install))
+			 (mvn-test . 
+				  (menu-item "Maven Test" 
+					     erl-mvn-maven-test))
+			 (mvn-compile . 
+				  (menu-item "Maven Compile" 
+					     erl-mvn-maven-compile))
+                         (sep1e . (menu-item "--"))
+
+
+			 (sep3 . (menu-item "Erlang Node:"))
+			 (setup . 
+				  (menu-item "Setup Erlang Node" 
 					     erl-mvn-compile-current-project))
+			 (run-erlang-console . 
+				  (menu-item "Erlang Node Remoteshell" 
+					     erl-mvn-erlang-node-remote-shell))
 			 (close . 
 				(menu-item "Shutdown Erlang Node" 
 					   erl-mvn-close-current-project))
@@ -97,19 +127,23 @@ Null prefix argument turns off the mode.
 ;;  Startup and shutdown functions.
 ;; ----------------------------------------------------------------------
 
-(defun erl-mvn-toggle-source-test
+(defun erl-mvn-toggle-source-test ()
   "If the buffer is a relevant erlang buffer open the appropriate test source, or
 if the buffer-file is in the test sources folder, visit the source."
   (interactive)
-  (let*
-      ((src-dir 
-	(cadr (assoc erl-mvn-artifact-id erl-mvn-source-paths)))
-       (test-src-dir 
-	(cadr (assoc erl-mvn-artifact-id erl-mvn-test-source-paths)))
-       (fn-dir (file-name-directory buffer-file-name)))
-    (cond ((string= src-dir fn-dir)
-	   (let ((file-name-nondirectory buffer-file-name)
-	(string= test-src-dir fn-dir)))))))
+  (erl-mvn-with-directories 
+   (lambda (source-dir test-source-dir fn-dir)
+     (cond 
+         ((string= fn-dir test-source-dir)
+          (let ((file-name (file-name-nondirectory buffer-file-name)))
+            (string-match "^\\(.+\\)_test.erl$" file-name)
+            (let ((target-file-name (concat source-dir (replace-match "\\1.erl" 'nil 'nil file-name))))
+              (find-file target-file-name))))
+         ((string= fn-dir source-dir)
+          (let ((file-name (file-name-nondirectory buffer-file-name)))
+            (string-match "^\\(.+\\).erl$" file-name)
+            (let ((target-file-name (concat test-source-dir (replace-match "\\1_test.erl" 'nil 'nil file-name))))
+              (find-file target-file-name))))))))
 
 (defun erl-mvn-compile-project(pom-file)
   "Asks for a pom to open. And compile the project using maven."
@@ -229,7 +263,7 @@ Automatic recompilation on saving erlang sources in that project is activated."
 			  (erl-mvn-pom-lookup  pom 'version)
 			  (if (erl-mvn-is-relevant-erl-buffer)
 			      (propertize "  *ERLANG NODE ACTIVE*" 'face 'bold)
-			    (propertize " (click on Erl-Mvn -> Compile) " 'face 'italic))))
+			    (propertize " (click on Erl-Mvn -> Setup Erlang Node) " 'face 'italic))))
 		   (force-mode-line-update))))))))
 
 (defun erl-mvn-update-distel-node()
@@ -265,19 +299,14 @@ erlang code managed by the current node."
   (if (and (not (minibufferp))
 	   (not (member (current-buffer) erl-mvn-irrelevant-buffers)))
       (let ((is-relevant 
-	     (if (and buffer-file-name
-		      (string-match "^.+\.erl$" buffer-file-name))
-		 (let* ((fn buffer-file-name)
-			(fn-dir (file-name-directory fn)))
-		   (if erl-mvn-pom-file
-		       (let*
-			   ((src-dir 
-			     (cadr (assoc erl-mvn-artifact-id erl-mvn-source-paths)))
-			    (test-src-dir 
-			     (cadr (assoc erl-mvn-artifact-id erl-mvn-test-source-paths))))
-			 (and (member erl-mvn-artifact-id erl-mvn-open-projects)
-			      (or (string= src-dir fn-dir)
-				  (string= test-src-dir fn-dir)))))))))
+	     (and buffer-file-name
+                  (string-match "^.+\.erl$" buffer-file-name)
+                  erl-mvn-pom-file
+                  (erl-mvn-with-directories 
+                   (lambda (src-dir test-src-dir fn-dir)
+                     (and (member erl-mvn-artifact-id erl-mvn-open-projects)
+                          (or (string= src-dir fn-dir)
+                              (string= test-src-dir fn-dir))))))))
 	(if (not is-relevant)
 	    (progn
 	      (if (buffer-live-p (current-buffer))
@@ -307,7 +336,9 @@ code_paths."
 	    (erl-mvn-open-project pom-file))
 	(progn
 	  (message "Building project %s of type %s" artifact-id packaging)
-	  (let ((mvn-result (erl-mvn-run-maven pom-file)))
+	  (let ((mvn-result (erl-mvn-run-maven pom-file))
+                (node-name (erl-mvn-make-node-name artifact-id))
+                (node (make-symbol node-name)))
 	    (mapcar 
 	     (lambda(l) 
 	       (cond ((string-match " include_dir: \\(.+\\)$" l)
@@ -327,7 +358,10 @@ code_paths."
 		(add-to-list 'erl-mvn-include-paths  `(,artifact-id ,include-dirs))        
 		(add-to-list 'erl-mvn-code-paths `(,artifact-id ,code-paths))
 		(add-to-list 'erl-mvn-source-paths `(,artifact-id ,src-dir))
-		(add-to-list 'erl-mvn-test-source-paths `(,artifact-id ,test-src-dir))))))))))
+		(add-to-list 'erl-mvn-test-source-paths `(,artifact-id ,test-src-dir))
+                (erpc node 'code 'add_pathsa (list code-paths))
+                (sleep-for 0.2)
+                ))))))))
 
 (defun erl-mvn-run-maven(pom)
   "Private function. Runs maven and pastes the output into a
@@ -420,8 +454,7 @@ can be used by maven for tests and debug code"
 		     (erl-mvn-make-buffer-name node-name)
 		     erl-mvn-erlang-executable
 		     "-name" node-name)
-      (sleep-for 5)
-      ;; upload erl_mvn_eunit 
+      (sleep-for 1)
       (erl-mvn-prepare-erlang-node node-name))))
 
 (defun erl-mvn-node-running(node-name)
@@ -436,10 +469,8 @@ erlang long node name string, and uploads all erlang modules necessary for erl-m
   (let ((n (make-symbol node-name)))
     (setq erl-nodename-cache n)    
     (erl-ping n)
-    (sleep-for 3)
-    (erpc n 'c 'c (list (concat erl-mvn-erl-source-path "/erl_mvn_eunit.erl")))
-    (erpc n 'c 'c (list (concat erl-mvn-erl-source-path "/erl_mvn_source_utils.erl")))
-    ))
+    (sleep-for 1)
+    (erl-mvn-upload-erlang-modules n)))
              
 (defun erl-mvn-make-node-name(str)
   "Private function. Creates a long erlang node name from a string."
@@ -460,9 +491,71 @@ just one node."
 		'artifactId)))))
 	(setq erl-nodename-cache node))))
 
+(defun erl-mvn-with-directories(k)
+  "Private function. Run k with three parameters: source path, test source path and directory of current buffer."
+    (let*
+      ((src-dir 
+	(cadr (assoc erl-mvn-artifact-id erl-mvn-source-paths)))
+       (test-src-dir 
+	(cadr (assoc erl-mvn-artifact-id erl-mvn-test-source-paths)))
+       (fn-dir (file-name-directory buffer-file-name)))
+      (apply k (list src-dir test-src-dir fn-dir))))
 ;; ----------------------------------------------------------------------
 ;;  Functions interacting with source buffers and an erlang node.
 ;; ----------------------------------------------------------------------
+
+(defun erl-mvn-upload-erlang-modules(node)
+  "Private function. Upload all erl-mvn erlang modules to node"
+  (sleep-for 0.2)
+  (erpc node 'c 'c (list (concat erl-mvn-erl-source-path "erl_mvn_eunit.erl") `([outdir ,erl-mvn-erl-source-path])))
+  (sleep-for 0.2)
+  (erpc node 'c 'c (list (concat erl-mvn-erl-source-path "erl_mvn_source_utils.erl") `([outdir ,erl-mvn-erl-source-path])))
+  (sleep-for 0.2))
+
+(defun erl-mvn-eunit-test-function()
+  "Private function. Runs either the eunit test for a complete module or the test function under the cursor.
+Ignores modules not in the test source directory."
+  (interactive)
+  (erl-mvn-eunit-run-at-line (lambda() (line-number-at-pos))))
+
+(defun erl-mvn-eunit-test-module()
+  "Private function. Runs eunit for a complete module.
+Ignores modules not in the test source directory."
+  (interactive)
+  (erl-mvn-eunit-run-at-line (lambda() 0)))
+  
+(defun erl-mvn-eunit-run-at-line(line-fun)
+  "Private function. Runs a a single test function near the point, or of line is 0 the complete module.
+The results will be displayed in a buffer and through graphical annotations. The argument must be a function that returns the line to consider. It will be called after the switch to the buffer containing the test."
+  (erl-mvn-with-directories
+   (lambda (source-dir test-source-dir fn-dir)
+     (if (string= fn-dir source-dir)
+         (erl-mvn-toggle-source-test))
+     (if (erl-mvn-is-relevant-erl-buffer)
+         (let* ((node-name (erl-mvn-make-node-name erl-mvn-artifact-id))
+                (erl-popup-on-output-old erl-popup-on-output)             
+                (node (make-symbol node-name))
+                (line (apply line-fun '())))
+           (setq erl-popup-on-output erl-mvn-popup-eunit-output)
+           (setq erl-eunit-source-buffer (current-buffer))
+           (erl-rpc 
+            (lambda (result) 
+              (erl-mvn-show-eunit-results result erl-eunit-source-buffer))
+            'nil
+            node 'erl_mvn_eunit 'run_test_file_line  
+            (list 
+             erl-mvn-tmp-source-file
+             line))
+           (setq erl-popup-on-output erl-popup-on-output-old))))))
+
+(defun erl-mvn-prepare-compilation-current-buffer()
+  "Private function. Creates intermediate directories, and stores the contents of the buffer for compilation.
+Adds to the codepath all necessare dependencies and load the erl-mvn helper modules to the erlang node for that buffer."
+  (let* ((node-name (erl-mvn-make-node-name erl-mvn-artifact-id))
+         (node (make-symbol node-name)))
+    (cd (file-name-directory erl-mvn-pom-file))
+    (make-directory erl-mvn-output-dir 'parents)
+    (write-region (point-min) (point-max) erl-mvn-tmp-source-file)))
 
 (defun erl-mvn-compile-buffer (load-module)
   "Compile the file of the buffer with the corresponding erlang
@@ -470,67 +563,39 @@ node uploading it as a side effect, if it belongs to a project
 currently managed. If only-check is non-nil, no code will
 actually be loaded and is checked only for errors and warnings"
   (interactive "Sload-module: ")
-  (setq erl-source-buffer (current-buffer))
-  (let* 
-      ((fn (file-truename (buffer-file-name)))
-       (warnings-r '())
-       (errors-r '())
-       (node-name (erl-mvn-make-node-name erl-mvn-artifact-id))
-       (node (make-symbol node-name))
-       (erl-popup-on-output-old erl-popup-on-output))
-
-    (setq erl-popup-on-output nil)
-    (cd (file-name-directory erl-mvn-pom-file))
-    (make-directory erl-mvn-output-dir 'parents)
-    (write-region (point-min) (point-max) erl-mvn-tmp-source-file)
-
-    (erpc node 'code 'add_paths
-	  (cdr (assoc erl-mvn-artifact-id erl-mvn-code-paths)))
-
-    (erpc node 'code 'add_patha (list erl-mvn-output-dir))
-
-    (message "Compiling %s from project %s" fn erl-mvn-artifact-id)
-    (let ((res-module  'nil))
-      (erl-rpc 
-       (lambda (result) 
-	 (mcase result
-	   
-	   (['ok module warnings]
-	    (setq warnings-r warnings)
-	    (setq errors-r '())
-	    (erl-mvn-show-compilation-results '() warnings erl-source-buffer)
-	    (setq res-module module))
-	   
-	   (['error errors warnings] 
-	    (message "Compilation failed!")            
-	    (setq warnings-r warnings)
-	    (setq errors-r errors)
-	    (erl-mvn-show-compilation-results errors warnings erl-source-buffer))
-	   
-	   (unexpected
-	    (setq warnings-r '())
-	    (setq errors-r '())
-	    (message "Unexpected message %s" unexpected)))) 
-       'nil
-       node 
-       'compile 
-       'file 
-       (cons source-file 
-	     (list (erl-mvn-get-erlang-compile-options 
-		    erl-mvn-artifact-id 
-		    erl-mvn-output-dir))))
-      
-      (cond (res-module
-	     (message "Successfully compiled module: %s." res-module)
-	     (cond (load-module
-		    (erpc node 'code 'delete (list res-module))
-		    (erpc node 'code 'purge (list res-module))
-		    (erpc node 'code 'delete (list res-module))
-		    (erpc node 'code 'purge (list res-module))
-		    (erpc node 'code 'load_file (list res-module))
-		    (message "Successfully loaded module %s into node %s." res-module node))))))
-    (setq erl-popup-on-output erl-popup-on-output-old))
-  (list warnings-r errors-r))
+    (let* 
+        ((fn (file-truename (buffer-file-name)))
+         (erl-source-buffer (current-buffer))
+         (node-name (erl-mvn-make-node-name erl-mvn-artifact-id))
+         (node (make-symbol node-name))
+         (erl-popup-on-output-old erl-popup-on-output)
+         (args (cons erl-mvn-tmp-source-file
+                     (list (erl-mvn-get-erlang-compile-options
+                            erl-mvn-artifact-id 
+                            erl-mvn-output-dir)))))
+      (setq erl-popup-on-output nil)
+      (erl-mvn-prepare-compilation-current-buffer)
+      (erl-spawn
+        (message "Compiling %s from project %s" fn erl-mvn-artifact-id)
+        (erl-send-rpc node 'compile 'file args)
+        (erl-receive (erl-popup-on-output-old erl-mvn-output-dir erl-source-buffer node load-module)
+            ((['rex result]
+              (mcase result              
+                
+                (['ok module warnings]
+                 (erl-mvn-show-compilation-results '() warnings erl-source-buffer)
+                 (message "Successfully compiled module: %s." module)
+                 (cond (load-module
+                        (erpc node 'erl_mvn_source_utils 'load_module 
+                              (list module (format "%s/%s" erl-mvn-output-dir module)))
+                        (message "Successfully loaded module %s into node %s." module node)))
+                 (setq erl-popup-on-output erl-popup-on-output-old))
+                
+                (['error errors warnings] 
+                 (message "Compilation failed!")            
+                 (erl-mvn-show-compilation-results errors warnings erl-source-buffer))
+                
+                (unexpected (message "Unexpected message %s" unexpected)))))))))
 
 (defun erl-mvn-get-erlang-compile-options (artifact-id output-dir)
   "Private function. Returns a list of compiler arguments for
@@ -561,6 +626,33 @@ is not nil."
       (compilation-mode)
       (let ((error-lines (erl-mvn-extract-linenumbers (append errors warnings))))
         (erl-mvn-mark-warnings error-lines mark-errors-buffer)))))
+
+(defun erl-mvn-show-eunit-results(results mark-buffer)
+  "Private function. Show the results of an eunit run."
+  (let ((base-dir 
+         (with-current-buffer mark-buffer 
+           (file-name-directory buffer-file-name))))
+    (save-excursion
+      (with-current-buffer (get-buffer-create "*erl-mvn-eunit-results*")	  
+        (if erl-mvn-popup-eunit-output
+            (save-selected-window        
+              (select-window (or (get-buffer-window (current-buffer))
+                                 (display-buffer (current-buffer))))))
+        (fundamental-mode)
+        (setq buffer-read-only nil)
+        (kill-region (point-min) (point-max))
+        (mapcar 
+         (lambda (r)
+           (mcase r
+             (['error function line reason]
+              (insert (concat base-dir reason))
+              line)
+             
+             (['ok function line] 
+              line)))
+         results)
+        (compilation-mode)
+        (erl-mvn-mark-eunit-results results mark-buffer)))))
 
 (defun erl-mvn-format-compiler-errors(msgs)
   "Private function that formats a list of compiler errors as
@@ -636,15 +728,42 @@ font-lock-warning-face on each line in the buffer, after removing
 all exiting warning face properties."
   (save-excursion
     (with-current-buffer buffer
-      (remove-overlays)
+      (remove-overlays 'nil 'nil 'compilation-error-overlay 't)
       (mapcar
        (lambda (e)
          (mlet (file line reason) e
            (if (string= file erl-mvn-tmp-source-file)
                (mlet (start-pos end-pos) (erl-mvn-get-line-pos line)
                  (let ((ov (make-overlay start-pos end-pos)))
+                   (overlay-put ov 'compilation-error-overlay 't)
                    (overlay-put ov 'font-lock-face 'font-lock-warning-face)
                    (overlay-put ov 'help-echo  (format "Problem: %s" reason)))))))
+       lines))))
+
+(defun erl-mvn-mark-eunit-results(lines buffer)
+  "Private Function. Highlights the eunit test results in a buffer, by setting the background
+color to green or red of the line or function header of each test."
+  (save-excursion
+    (with-current-buffer buffer
+      (setq erl-mvn-is-dirty 'nil)
+      (remove-overlays 'nil 'nil 'eunit-overlay 't)
+      (mapcar
+       (lambda (e)
+         (if e
+             (mcase e
+               (['ok function line]
+                (mlet (start-pos end-pos) (erl-mvn-get-line-pos line)
+                  (let ((ov (make-overlay start-pos end-pos)))
+                    (overlay-put ov 'eunit-overlay 't)
+                    (overlay-put ov 'face '(:background "green" :foreground "white"))
+                    )))
+               
+               (['error function line reason]
+                (mlet (start-pos end-pos) (erl-mvn-get-line-pos line)
+                  (let ((ov (make-overlay start-pos end-pos)))
+                    (overlay-put ov 'eunit-overlay 't)
+                    (overlay-put ov 'face '(:background "red" :foreground "white"))
+                    (overlay-put ov 'help-echo reason)))))))
        lines))))
 
 (defun erl-mvn-lists-join(lists)
