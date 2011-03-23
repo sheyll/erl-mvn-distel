@@ -10,6 +10,9 @@
 (defvar erl-mvn-maven-executable "mvn"
   "The path to the maven executable.")
 
+(defvar erl-mvn-xterm-executable "gnome-terminal"
+  "The terminal emulator to use for erlang remote shells.")
+
 (defvar erl-mvn-hostname 
   (car (process-lines "hostname" "-f"))
   "The hostname of the erlang nodes for maven and distel.")
@@ -69,6 +72,7 @@
 			(keymap                          
 
 			 (sep2 . (menu-item "Current Buffer:"))
+                         (sep2a . (menu-item "--"))
 			 (toggle-source-test . 
 				  (menu-item "Switch Between Source <-> Test" 
 					     erl-mvn-toggle-source-test))
@@ -82,6 +86,7 @@
 
 
 			 (sep1 . (menu-item "Maven:"))
+                         (sep1a . (menu-item "--"))
 			 (mvn-install . 
 				  (menu-item "Maven Install" 
 					     erl-mvn-maven-install))
@@ -91,16 +96,18 @@
 			 (mvn-compile . 
 				  (menu-item "Maven Compile" 
 					     erl-mvn-maven-compile))
-                         (sep1e . (menu-item "--"))
+                         (sep1b . (menu-item "--"))
 
 
 			 (sep3 . (menu-item "Erlang Node:"))
-			 (setup . 
-				  (menu-item "Setup Erlang Node" 
-					     erl-mvn-compile-current-project))
+                         (sep3a . (menu-item "--"))
 			 (run-erlang-console . 
 				  (menu-item "Erlang Node Remoteshell" 
 					     erl-mvn-erlang-node-remote-shell))
+                         (sep3b . (menu-item "--"))
+			 (setup . 
+				  (menu-item "Setup Erlang Node" 
+					     erl-mvn-compile-current-project))
 			 (close . 
 				(menu-item "Shutdown Erlang Node" 
 					   erl-mvn-close-current-project))
@@ -126,6 +133,14 @@ Null prefix argument turns off the mode.
 ;; ----------------------------------------------------------------------
 ;;  Startup and shutdown functions.
 ;; ----------------------------------------------------------------------
+
+(defun erl-mvn-erlang-node-remote-shell()
+  "Open the terminal program defined in the variable erl-mvn-xterm-executable."
+  (interactive)
+  (let ((node-name (erl-mvn-make-node-name erl-mvn-artifact-id))
+        (tmp-node-name (format "erl-mvn-remsh-%s@%s" (random) erl-mvn-hostname)))
+    (start-process tmp-node-name (format "*%s*" tmp-node-name) erl-mvn-xterm-executable "-e" 
+                   (format "%s -remsh %s -name %s" erl-mvn-erlang-executable node-name tmp-node-name))))
 
 (defun erl-mvn-toggle-source-test ()
   "If the buffer is a relevant erlang buffer open the appropriate test source, or
