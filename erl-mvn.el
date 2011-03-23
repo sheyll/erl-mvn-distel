@@ -525,8 +525,11 @@ Ignores modules not in the test source directory."
   (erl-mvn-eunit-run-at-line (lambda() 0)))
   
 (defun erl-mvn-eunit-run-at-line(line-fun)
-  "Private function. Runs a a single test function near the point, or of line is 0 the complete module.
-The results will be displayed in a buffer and through graphical annotations. The argument must be a function that returns the line to consider. It will be called after the switch to the buffer containing the test."
+  "Private function. Runs a a single test function near the point, or 
+of line is 0 the complete module. The results will be displayed in a 
+buffer and through graphical annotations. The argument must be a function 
+that returns the line to consider. It will be called after the switch to 
+the buffer containing the test."
   (erl-mvn-with-directories
    (lambda (source-dir test-source-dir fn-dir)
      (if (string= fn-dir source-dir)
@@ -535,18 +538,16 @@ The results will be displayed in a buffer and through graphical annotations. The
          (let* ((node-name (erl-mvn-make-node-name erl-mvn-artifact-id))
                 (erl-popup-on-output-old erl-popup-on-output)             
                 (node (make-symbol node-name))
-                (line (apply line-fun '())))
+                (line (apply line-fun '()))
+                (args (list erl-mvn-tmp-source-file line)))
            (setq erl-popup-on-output erl-mvn-popup-eunit-output)
            (setq erl-eunit-source-buffer (current-buffer))
-           (erl-rpc 
-            (lambda (result) 
-              (erl-mvn-show-eunit-results result erl-eunit-source-buffer))
-            'nil
-            node 'erl_mvn_eunit 'run_test_file_line  
-            (list 
-             erl-mvn-tmp-source-file
-             line))
-           (setq erl-popup-on-output erl-popup-on-output-old))))))
+           (erl-spawn
+             (erl-send-rpc node 'erl_mvn_eunit 'run_test_file_line args)             
+             (erl-receive (erl-popup-on-output-old erl-eunit-source-buffer)
+                 ((['rex result]
+                   (erl-mvn-show-eunit-results result erl-eunit-source-buffer)              
+                   (setq erl-popup-on-output erl-popup-on-output-old))))))))))
 
 (defun erl-mvn-prepare-compilation-current-buffer()
   "Private function. Creates intermediate directories, and stores the contents of the buffer for compilation.

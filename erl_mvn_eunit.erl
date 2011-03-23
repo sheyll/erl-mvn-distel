@@ -144,4 +144,4 @@ format_error({error, {Type, Reasons}, _Stack}, Line) ->
     Expected = proplists:get_value(expected, Reasons),
     Expression = proplists:get_value(expression, Reasons),
     Actual = proplists:get_value(value, Reasons),
-    lists:flatten(io_lib:format("~w.erl:~w ~w~n     Expected:~n          ~w~n     Actual:~n           ~w~n     Expression:~n          ~p~n~n", [Mod, Line, Type, Expected, Actual, Expression])).
+    lists:flatten(io_lib:format("~w.erl:~w ~w~n     Expected:~n          ~p~n     Actual:~n           ~p~n     Expression:~n          ~p~n~n", [Mod, Line, Type, Expected, Actual, Expression])).
