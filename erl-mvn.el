@@ -545,6 +545,7 @@ of line is 0 the complete module. The results will be displayed in a
 buffer and through graphical annotations. The argument must be a function 
 that returns the line to consider. It will be called after the switch to 
 the buffer containing the test."
+  (erl-mvn-prepare-compilation-current-buffer)
   (erl-mvn-with-directories
    (lambda (source-dir test-source-dir fn-dir)
      (if (string= fn-dir source-dir)
@@ -569,7 +570,6 @@ the buffer containing the test."
 Adds to the codepath all necessare dependencies and load the erl-mvn helper modules to the erlang node for that buffer."
   (let* ((node-name (erl-mvn-make-node-name erl-mvn-artifact-id))
          (node (make-symbol node-name)))
-    (cd (file-name-directory erl-mvn-pom-file))
     (make-directory erl-mvn-output-dir 'parents)
     (write-region (point-min) (point-max) erl-mvn-tmp-source-file)))
 
