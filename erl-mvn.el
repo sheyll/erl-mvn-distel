@@ -36,6 +36,9 @@
             (or (locate-library "distel") load-file-name)))
    "Path to the erlang sources shipped with erl-mvn.")
 
+(defvar erl-mvn-auto-start-maven-node 't
+  "If non-nil an erlang node is started and code is")
+
 ;; ----------------------------------------------------------------------
 ;;  These variables will be set while working with erl-mvn
 ;; ----------------------------------------------------------------------
@@ -65,54 +68,63 @@
    "Path to the erlang sources shipped with erl-mvn..")
 
 (defvar erl-mvn-mode-map 
-  '(keymap 
-    (menu-bar . 
-	      (keymap 
-	       (erl-mvn "Maven" . 
-			(keymap                          
+  (let ((the-map
+         '(keymap 
+           (menu-bar . 
+                     (keymap 
+                      (erl-mvn "Maven" . 
+                               (keymap                          
+                                
+                                (sep2 . (menu-item "Current Buffer:"))
+                                (sep2a . (menu-item "--"))
+                                (toggle-source-test . 
+                                                    (menu-item "Switch Between Source <-> Test" 
+                                                               erl-mvn-toggle-source-test :keys "C-c C-v s or F5"))
+                                (test-function . 
+                                               (menu-item "Eunit-test Function" 
+                                                          erl-mvn-eunit-test-function :keys "C-c C-v t or F6"))
+                                (test-module . 
+                                             (menu-item "Eunit-test Module" 
+                                                        erl-mvn-eunit-test-module :keys "C-c C-v T or F7"))
+                                (sep2e . (menu-item "--"))
+                                
+                                
+                                (sep1 . (menu-item "Maven:"))
+                                (sep1a . (menu-item "--"))
+                                (mvn-install . 
+                                             (menu-item "Maven Install" 
+                                                        erl-mvn-maven-install))
+                                (mvn-test . 
+                                          (menu-item "Maven Test" 
+                                                     erl-mvn-maven-test))
+                                (mvn-compile . 
+                                             (menu-item "Maven Compile" 
+                                                        erl-mvn-maven-compile))
+                                (sep1b . (menu-item "--"))
+                                
+                                
+                                (sep3 . (menu-item "Erlang Node:"))
+                                (sep3a . (menu-item "--"))
+                                (run-erlang-console . 
+                                                    (menu-item "Erlang Node Remoteshell" 
+                                                               erl-mvn-erlang-node-remote-shell))
+                                (sep3b . (menu-item "--"))
+                                (setup . 
+                                       (menu-item "Setup Erlang Node" 
+                                                  erl-mvn-compile-current-project))
+                                (close . 
+                                       (menu-item "Shutdown Erlang Node" 
+                                                  erl-mvn-close-current-project))
+                                )))))))
+    (define-key the-map [?\C-c ?\C-v ?s] 'erl-mvn-toggle-source-test)
+    (define-key the-map [?\C-c ?\C-v ?t] 'erl-mvn-eunit-test-function)
+    (define-key the-map (kbd "C-c C-v C-t") 'erl-mvn-eunit-test-module)
 
-			 (sep2 . (menu-item "Current Buffer:"))
-                         (sep2a . (menu-item "--"))
-			 (toggle-source-test . 
-				  (menu-item "Switch Between Source <-> Test" 
-					     erl-mvn-toggle-source-test))
-			 (test-function . 
-				  (menu-item "Eunit-test Function" 
-					     erl-mvn-eunit-test-function))
-			 (test-module . 
-				  (menu-item "Eunit-test Module" 
-					     erl-mvn-eunit-test-module))
-                         (sep2e . (menu-item "--"))
-
-
-			 (sep1 . (menu-item "Maven:"))
-                         (sep1a . (menu-item "--"))
-			 (mvn-install . 
-				  (menu-item "Maven Install" 
-					     erl-mvn-maven-install))
-			 (mvn-test . 
-				  (menu-item "Maven Test" 
-					     erl-mvn-maven-test))
-			 (mvn-compile . 
-				  (menu-item "Maven Compile" 
-					     erl-mvn-maven-compile))
-                         (sep1b . (menu-item "--"))
-
-
-			 (sep3 . (menu-item "Erlang Node:"))
-                         (sep3a . (menu-item "--"))
-			 (run-erlang-console . 
-				  (menu-item "Erlang Node Remoteshell" 
-					     erl-mvn-erlang-node-remote-shell))
-                         (sep3b . (menu-item "--"))
-			 (setup . 
-				  (menu-item "Setup Erlang Node" 
-					     erl-mvn-compile-current-project))
-			 (close . 
-				(menu-item "Shutdown Erlang Node" 
-					   erl-mvn-close-current-project))
-			 )))))
-  "Erl Mvn minor mode keymap.")
+    (define-key the-map (kbd "<f5>") 'erl-mvn-toggle-source-test)
+    (define-key the-map (kbd "<f6>") 'erl-mvn-eunit-test-function)
+    (define-key the-map (kbd "<f7>") 'erl-mvn-eunit-test-module)
+    the-map)
+    "Erl Mvn minor mode keymap.")
 
 ;; ----------------------------------------------------------------------
 ;; Erlang source buffer minor mode
@@ -278,7 +290,9 @@ Automatic recompilation on saving erlang sources in that project is activated."
 			  (erl-mvn-pom-lookup  pom 'version)
 			  (if (erl-mvn-is-relevant-erl-buffer)
 			      (propertize "  *ERLANG NODE ACTIVE*" 'face 'bold)
-			    (propertize " (click on Erl-Mvn -> Setup Erlang Node) " 'face 'italic))))
+			    (if erl-mvn-auto-start-maven-node
+                                (erl-mvn-compile-current-project)
+                              (propertize " (click on Erl-Mvn -> Setup Erlang Node) " 'face 'italic)))))
 		   (force-mode-line-update))))))))
 
 (defun erl-mvn-update-distel-node()
@@ -771,14 +785,14 @@ color to green or red of the line or function header of each test."
                 (mlet (start-pos end-pos) (erl-mvn-get-line-pos line)
                   (let ((ov (make-overlay start-pos end-pos)))
                     (overlay-put ov 'eunit-overlay 't)
-                    (overlay-put ov 'face '(:background "green" :foreground "white"))
+                    (overlay-put ov 'face '(:background "green" :foreground "black"))
                     )))
                
                (['error function line reason]
                 (mlet (start-pos end-pos) (erl-mvn-get-line-pos line)
                   (let ((ov (make-overlay start-pos end-pos)))
                     (overlay-put ov 'eunit-overlay 't)
-                    (overlay-put ov 'face '(:background "red" :foreground "white"))
+                    (overlay-put ov 'face '(:background "red" :foreground "black"))
                     (overlay-put ov 'help-echo reason)))))))
        lines))))
 
