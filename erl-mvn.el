@@ -37,7 +37,7 @@
    "Path to the erlang sources shipped with erl-mvn.")
 
 (defvar erl-mvn-auto-start-maven-node 't
-  "If non-nil an erlang node is started and code is")
+  "If non-nil an erlang node is started and code is. Do not change unless you want to start each erlang node manually.")
 
 ;; ----------------------------------------------------------------------
 ;;  These variables will be set while working with erl-mvn
@@ -87,31 +87,13 @@
                                              (menu-item "Eunit-test Module" 
                                                         erl-mvn-eunit-test-module :keys "C-c C-v T or F7"))
                                 (sep2e . (menu-item "--"))
-                                
-                                
-                                (sep1 . (menu-item "Maven:"))
-                                (sep1a . (menu-item "--"))
-                                (mvn-install . 
-                                             (menu-item "Maven Install" 
-                                                        erl-mvn-maven-install))
-                                (mvn-test . 
-                                          (menu-item "Maven Test" 
-                                                     erl-mvn-maven-test))
-                                (mvn-compile . 
-                                             (menu-item "Maven Compile" 
-                                                        erl-mvn-maven-compile))
-                                (sep1b . (menu-item "--"))
-                                
-                                
+                                                                                                
                                 (sep3 . (menu-item "Erlang Node:"))
                                 (sep3a . (menu-item "--"))
                                 (run-erlang-console . 
                                                     (menu-item "Erlang Node Remoteshell" 
                                                                erl-mvn-erlang-node-remote-shell))
                                 (sep3b . (menu-item "--"))
-                                (setup . 
-                                       (menu-item "Setup Erlang Node" 
-                                                  erl-mvn-compile-current-project))
                                 (close . 
                                        (menu-item "Shutdown Erlang Node" 
                                                   erl-mvn-close-current-project))
@@ -210,10 +192,7 @@ Automatic recompilation on saving erlang sources in that project is activated."
 	      (erl-mvn-start-node node-name)
 	      (add-to-list 'erl-mvn-open-projects artifact-id)
 	      (erl-mvn-compile-project-maven pom-file)))
-	  (setq erl-mvn-irrelevant-buffers 'nil)
-	  (mapcar 
-	   'erl-mvn-setup-buffer
-	   (buffer-list)))))
+	  (erl-mvn-refresh-buffers))))
 
 (defun erl-mvn-close-current-project()
   "Closes a project opened with erl-mvn-open-project. Removes all processes and buffers associated to the artifact-id of the project. The project that is closed is determined by the current buffer."
@@ -226,10 +205,9 @@ Automatic recompilation on saving erlang sources in that project is activated."
       (cond ((erl-mvn-node-running node-name)
 	     (delete-process erl-buf)
 	     (kill-buffer erl-buf))))
-    (kill-buffer (erl-mvn-make-mvn-output-buffer-name artifact-id))
-    (mapcar 
-     'erl-mvn-setup-buffer
-     (buffer-list))))
+    (kill-buffer 
+     (erl-mvn-make-mvn-output-buffer-name artifact-id))
+    (erl-mvn-refresh-buffers)))
 
 (defun erl-mvn-setup()
   "Adds the compile function to the save hooks of erlang files."
@@ -252,8 +230,10 @@ Automatic recompilation on saving erlang sources in that project is activated."
    'erlang-mode-hook
    (lambda ()
      (let ((pom (erl-mvn-find-pom (file-name-directory buffer-file-name))))
-       (cond (pom
-	      (erl-mvn-mode 1)
+       (cond (pom              
+              (if (not (or (erl-mvn-node-running-for-pom pom)
+                           (not erl-mvn-auto-start-maven-node)))
+                  (erl-mvn-compile-current-project))
 	      (erl-mvn-setup-buffer (current-buffer)))))))
   (add-hook 'after-save-hook 
 	    (function erl-mvn-erl-buffer-saved))
@@ -261,39 +241,47 @@ Automatic recompilation on saving erlang sources in that project is activated."
   (add-to-list 'after-change-functions (function erl-mvn-mark-buffer-dirty))
   (run-with-idle-timer 1 't (function erl-mvn-check-current-buffer)))
 
+(defun erl-mvn-refresh-buffers()
+  "Private function. Clears the irrelevant buffer cache and sets up header line and minor mode for all relevant erlang buffers."
+  (setq erl-mvn-irrelevant-buffers 'nil)
+  (mapcar 
+   'erl-mvn-setup-buffer
+   (buffer-list)))
+
 (defun erl-mvn-setup-buffer(buffer)
   "Private function. Sets the header line and minor mode menu."
   (with-current-buffer buffer
-    (if buffer-file-name
-	(let ((pom (erl-mvn-find-pom (file-name-directory buffer-file-name))))
-	  (cond (pom
-		 (let* ((ai (erl-mvn-pom-lookup  pom 'artifactId))
-			(output-dir
-			 (file-truename 
-			  (concat 
-			   (file-name-directory pom) 
-			   "target/emacs-compiled/")))
-			(source-file 
-			 (file-truename (concat 
-					 output-dir 
-					 (file-name-nondirectory buffer-file-name)))))
-		   (setq erl-mvn-artifact-id ai)
-		   (setq erl-mvn-pom-file pom)		   
-		   (setq erl-mvn-output-dir output-dir)
-		   (setq erl-mvn-tmp-source-file source-file)
-		   (setq header-line-format 
-			 (concat 
-			  (erl-mvn-pom-lookup  pom 'groupId)
-			  "/"
-			  (propertize erl-mvn-artifact-id 'face 'bold)
-			  "  "
-			  (erl-mvn-pom-lookup  pom 'version)
-			  (if (erl-mvn-is-relevant-erl-buffer)
-			      (propertize "  *ERLANG NODE ACTIVE*" 'face 'bold)
-			    (if erl-mvn-auto-start-maven-node
-                                (erl-mvn-compile-current-project)
-                              (propertize " (click on Erl-Mvn -> Setup Erlang Node) " 'face 'italic)))))
-		   (force-mode-line-update))))))))
+    (if (and (not (minibufferp buffer))
+             buffer-file-name)
+        (let ((pom (erl-mvn-find-pom (file-name-directory buffer-file-name))))
+          (cond ((and pom
+                      (string-match "^.+\.erl$" buffer-file-name))
+                 (let* ((ai (erl-mvn-pom-lookup pom 'artifactId))
+                        (output-dir (file-truename 
+                                     (concat (file-name-directory pom) 
+                                             "target/emacs-compiled/")))
+                        (source-file (file-truename 
+                                      (concat output-dir 
+                                              (file-name-nondirectory buffer-file-name)))))
+                   (setq erl-mvn-artifact-id ai)
+                   (setq erl-mvn-pom-file pom)
+                   (setq erl-mvn-output-dir output-dir)
+                   (setq erl-mvn-tmp-source-file source-file)
+                   (cond  ((erl-mvn-with-directories 
+                            (lambda (src-dir test-src-dir fn-dir)
+                              (and (member ai erl-mvn-open-projects)
+                                   (or (string= src-dir fn-dir)
+                                       (string= test-src-dir fn-dir)))))
+                           (erl-mvn-mode 1)
+                           (setq header-line-format 
+                                 (concat 
+                                  (erl-mvn-pom-lookup  pom 'groupId)
+                                  "/"
+                                  (propertize erl-mvn-artifact-id 'face 'bold)
+                                  "  "
+                                  (erl-mvn-pom-lookup  pom 'version)
+                                  (propertize "  *ERLANG NODE ACTIVE*" 'face 'bold)))
+                           (force-mode-line-update))))))))))
 
 (defun erl-mvn-update-distel-node()
   "Updates distel variables to contain the erlang node of the project the current file belongs to." 
@@ -325,23 +313,7 @@ Automatic recompilation on saving erlang sources in that project is activated."
 (defun erl-mvn-is-relevant-erl-buffer()
   "Private function. Determines if the current buffer contains
 erlang code managed by the current node."
-  (if (and (not (minibufferp))
-	   (not (member (current-buffer) erl-mvn-irrelevant-buffers)))
-      (let ((is-relevant 
-	     (and buffer-file-name
-                  (string-match "^.+\.erl$" buffer-file-name)
-                  erl-mvn-pom-file
-                  (erl-mvn-with-directories 
-                   (lambda (src-dir test-src-dir fn-dir)
-                     (and (member erl-mvn-artifact-id erl-mvn-open-projects)
-                          (or (string= src-dir fn-dir)
-                              (string= test-src-dir fn-dir))))))))
-	(if (not is-relevant)
-	    (progn
-	      (if (buffer-live-p (current-buffer))
-		  (add-to-list 'erl-mvn-irrelevant-buffers (current-buffer)))
-	      'nil)
-	  't))))
+  erl-mvn-mode)
 
 ;; ----------------------------------------------------------------------
 ;;  Functions for maven interaction
@@ -384,7 +356,7 @@ code_paths."
 	    (if build-failed
 		(message "Building and adding maven project %s failed!" artifact-id)
 	      (progn
-		(add-to-list 'erl-mvn-include-paths  `(,artifact-id ,include-dirs))        
+		(add-to-list 'erl-mvn-include-paths  `(,artifact-id ,include-dirs))   
 		(add-to-list 'erl-mvn-code-paths `(,artifact-id ,code-paths))
 		(add-to-list 'erl-mvn-source-paths `(,artifact-id ,src-dir))
 		(add-to-list 'erl-mvn-test-source-paths `(,artifact-id ,test-src-dir))
@@ -485,6 +457,13 @@ can be used by maven for tests and debug code"
 		     "-name" node-name)
       (sleep-for 1)
       (erl-mvn-prepare-erlang-node node-name))))
+
+
+(defun erl-mvn-node-running-for-pom(pom-file)
+  "Private function. Returns 't if an erlang node is running, to wich code of the projected identified by the pom file is uploaded."
+  (erl-mvn-node-running 
+   (erl-mvn-make-node-name 
+    (erl-mvn-pom-lookup pom-file 'artifactId))))
 
 (defun erl-mvn-node-running(node-name)
   "Private function. Returns 't if a an erlang process was
