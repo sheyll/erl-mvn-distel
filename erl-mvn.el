@@ -1,7 +1,8 @@
 (provide 'erl-mvn)
 
-(require 'gen-server-skeleton)
+(require 'application-skeleton)
 (require 'supervisor-skeleton)
+(require 'gen-server-skeleton)
 ;; ----------------------------------------------------------------------
 ;;  Global Vars
 ;; ----------------------------------------------------------------------
@@ -79,6 +80,9 @@
                                 
                                 (sep1 . (menu-item "Skeletons:"))
                                 (sep1a . (menu-item "--"))
+                                (application-skel . 
+                                                 (menu-item "Application" 
+                                                            application-skeleton :keys "C-c C-v a"))
                                 (supervisor-skel . 
                                                  (menu-item "Supervisor" 
                                                             supervisor-skeleton :keys "C-c C-v u"))
@@ -111,6 +115,7 @@
                                        (menu-item "Shutdown Erlang Node" 
                                                   erl-mvn-close-current-project))
                                 )))))))
+    (define-key the-map (kbd "C-c C-v a") 'application-skeleton)
     (define-key the-map (kbd "C-c C-v u") 'supervisor-skeleton)
     (define-key the-map (kbd "C-c C-v g") 'gen-server-skeleton)
 
