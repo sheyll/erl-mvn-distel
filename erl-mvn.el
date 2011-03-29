@@ -1,5 +1,7 @@
 (provide 'erl-mvn)
 
+(require 'gen-server-skeleton)
+(require 'supervisor-skeleton)
 ;; ----------------------------------------------------------------------
 ;;  Global Vars
 ;; ----------------------------------------------------------------------
@@ -75,6 +77,17 @@
                       (erl-mvn "Maven" . 
                                (keymap                          
                                 
+                                (sep1 . (menu-item "Skeletons:"))
+                                (sep1a . (menu-item "--"))
+                                (supervisor-skel . 
+                                                 (menu-item "Supervisor" 
+                                                            supervisor-skeleton :keys "C-c C-v u"))
+                                (gen-server-skeleton . 
+                                                     (menu-item "Gen-Server" 
+                                                                gen-server-skeleton :keys "C-c C-v g"))
+                                (sep1e . (menu-item "--"))
+
+                                
                                 (sep2 . (menu-item "Current Buffer:"))
                                 (sep2a . (menu-item "--"))
                                 (toggle-source-test . 
@@ -98,6 +111,9 @@
                                        (menu-item "Shutdown Erlang Node" 
                                                   erl-mvn-close-current-project))
                                 )))))))
+    (define-key the-map (kbd "C-c C-v u") 'supervisor-skeleton)
+    (define-key the-map (kbd "C-c C-v g") 'gen-server-skeleton)
+
     (define-key the-map [?\C-c ?\C-v ?s] 'erl-mvn-toggle-source-test)
     (define-key the-map [?\C-c ?\C-v ?t] 'erl-mvn-eunit-test-function)
     (define-key the-map (kbd "C-c C-v C-t") 'erl-mvn-eunit-test-module)
