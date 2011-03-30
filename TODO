@@ -1,6 +1,10 @@
 TODOs
 -----
 
+* Fix bug: when eunit fails with 'undef' no output is visible
+
+* Improve color theme for eunit failure and compile errors
+
 * Fix bug: code is loaded into target node even if the load-module parameter is nil
 
 * assure the kill stays clean
