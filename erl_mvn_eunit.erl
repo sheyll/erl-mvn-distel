@@ -42,9 +42,10 @@ run_test_file_line(SourceFile, Line) ->
 %% record definition section
 
 -record(state, {
-          test_results = [] :: [{ok, atom()} | {error, atom(), integer(), string()}],
-          source_file       :: string(),
-	  report_to         :: pid()}).
+          test_results = []     :: [{ok, atom()} | {error, atom(), integer(), string()}],
+          source_file           :: string(),
+	  report_to             :: pid(),
+          last_test_fun_started :: {atom(), integer()}}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% public function section
@@ -78,6 +79,11 @@ init([{report_to, Pid}, {source_file, SourceFile}]) ->
 %%% Handles the begin of a test case or suite.
 %%% @end
 %%%-----------------------------------------------------------------------------
+handle_begin(test, Data, State) ->
+%    io:format("XXXXXXXXXXXXXXXXXXXXXXXXXX ~p~n", [Data]),
+    {_Mod, Function, Arg} = proplists:get_value(source, Data),
+    State#state{last_test_fun_started = {Function, Arg}};
+
 handle_begin(_Arg1, _Data, State) ->
     State.
 
@@ -86,7 +92,11 @@ handle_begin(_Arg1, _Data, State) ->
 %%% Handles the end of a test case or suite.
 %%% @end
 %%%-----------------------------------------------------------------------------
-handle_end(test, Data, State = #state{source_file = SourceFile}) ->
+handle_end(test, Data, 
+           State = #state{
+             source_file = SourceFile,
+             last_test_fun_started = CurrentFun
+            }) ->
 %    io:format("-------------------------------handle_end ~p~n", [Data]),
     {_Mod, Function, Arg} = proplists:get_value(source, Data),
     case proplists:get_value(status, Data) of
@@ -94,8 +104,8 @@ handle_end(test, Data, State = #state{source_file = SourceFile}) ->
             Line = erl_mvn_source_utils:get_line_of_function(SourceFile, Function, Arg),
             TestResult = {ok, Function, Line};
         {error, Reason} ->
-            Line = get_error_line(Reason, SourceFile),
-            TestResult = {error, Function, Line, format_error(Reason, Line)}
+            Line = get_error_line(Reason, SourceFile, CurrentFun),
+            TestResult = {error, Function, Line, format_error(Reason)}
     end,   
     State#state{test_results = [TestResult | State#state.test_results]}; 
 
@@ -131,17 +141,21 @@ terminate(_, #state{test_results = R, report_to = Dest}) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% internal function section
-get_error_line({error, {_Type, Reasons}, _Stack}, _SourceFile) ->
+get_error_line({error, {_Type, Reasons}, _Stack}, _SourceFile, _CurrentFun) ->
     proplists:get_value(line, Reasons);
 
-get_error_line({throw, _What, [{_M, F, A}]}, SourceFile) ->    
+get_error_line({throw, _What, [{_M, F, A}]}, SourceFile, _CurrentFun) ->    
+    erl_mvn_source_utils:get_line_of_function(SourceFile, F, A);
+
+get_error_line(_Other, SourceFile, {F, A}) -> 
     erl_mvn_source_utils:get_line_of_function(SourceFile, F, A).
 
-format_error({throw, What, [{M, F, A}]}, Line) ->
-    lists:flatten(io_lib:format("~w.erl:~w Exception ~w at ~w/~w~n~n", [M, Line, What, F, A]));
-format_error({error, {Type, Reasons}, _Stack}, Line) ->
-    Mod = proplists:get_value(module, Reasons),
+format_error({throw, What, [{_M, F, A}]}) ->
+    lists:flatten(io_lib:format("Exception ~w at ~w/~w~n~n", [What, F, A]));
+format_error({error, {Type, Reasons}, _Stack}) ->
     Expected = proplists:get_value(expected, Reasons),
     Expression = proplists:get_value(expression, Reasons),
     Actual = proplists:get_value(value, Reasons),
-    lists:flatten(io_lib:format("~w.erl:~w ~w~n     Expected:~n          ~p~n     Actual:~n           ~p~n     Expression:~n          ~p~n~n", [Mod, Line, Type, Expected, Actual, Expression])).
+    lists:flatten(io_lib:format("~w~n     Expected:~n          ~p~n     Actual:~n           ~p~n     Expression:~n          ~p~n~n", [Type, Expected, Actual, Expression]));
+format_error({exit, Reason, Stacktrace}) ->
+    lists:flatten(io_lib:format("Exception:~n~p~n~nat:~n~p~n", [Reason, Stacktrace])).

@@ -317,7 +317,7 @@ Automatic recompilation on saving erlang sources in that project is activated."
   (cond (erl-mvn-is-dirty
 	 (setq erl-mvn-is-dirty 'nil)
 	 (cond ((erl-mvn-is-relevant-erl-buffer)
-		(erl-mvn-compile-buffer 'f))))))
+		(erl-mvn-compile-buffer 'nil))))))
 
 (defun erl-mvn-mark-buffer-dirty(beginning end old-length)
   "Marks a buffer dirty. This is interpreted by the idle timer callback that decides wether a buffer needs recompilation."
@@ -594,12 +594,15 @@ currently managed. If only-check is non-nil, no code will
 actually be loaded and is checked only for errors and warnings"
   (interactive "Sload-module: ")
     (let* 
-        ((fn (file-truename (buffer-file-name)))
+        ((old-kill-ring (copy-list kill-ring))
+         (fn (file-truename (buffer-file-name)))
          (erl-source-buffer (current-buffer))
          (node-name (erl-mvn-make-node-name erl-mvn-artifact-id))
          (node (make-symbol node-name))
          (erl-popup-on-output-old erl-popup-on-output)
-         (args (cons erl-mvn-tmp-source-file
+         (args (cons (if load-module
+                         fn
+                         erl-mvn-tmp-source-file)
                      (list (erl-mvn-get-erlang-compile-options
                             erl-mvn-artifact-id 
                             erl-mvn-output-dir)))))
@@ -608,7 +611,7 @@ actually be loaded and is checked only for errors and warnings"
       (erl-spawn
         (message "Compiling %s from project %s" fn erl-mvn-artifact-id)
         (erl-send-rpc node 'compile 'file args)
-        (erl-receive (erl-popup-on-output-old erl-mvn-output-dir erl-source-buffer node load-module)
+        (erl-receive (erl-popup-on-output-old erl-mvn-output-dir erl-source-buffer node load-module fn old-kill-ring)
             ((['rex result]
               (mcase result              
                 
@@ -619,11 +622,13 @@ actually be loaded and is checked only for errors and warnings"
                         (erpc node 'erl_mvn_source_utils 'load_module 
                               (list module (format "%s/%s" erl-mvn-output-dir module)))
                         (message "Successfully loaded module %s into node %s." module node)))
+                 (setq kill-ring old-kill-ring)
                  (setq erl-popup-on-output erl-popup-on-output-old))
                 
                 (['error errors warnings] 
                  (message "Compilation failed!")            
-                 (erl-mvn-show-compilation-results errors warnings erl-source-buffer))
+                 (erl-mvn-show-compilation-results errors warnings erl-source-buffer)
+                 (setq kill-ring old-kill-ring))
                 
                 (unexpected (message "Unexpected message %s" unexpected)))))))))
 
