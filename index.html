@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset='utf-8'>
+
+  <title>sheyll/erl-mvn-distel @ GitHub</title>
+
+  <style type="text/css">
+    body {
+      margin-top: 1.0em;
+      background-color: #dc0401;
+      font-family: Helvetica, Arial, FreeSans, san-serif;
+      color: #ffffff;
+    }
+    #container {
+      margin: 0 auto;
+      width: 700px;
+    }
+    h1 { font-size: 3.8em; color: #23fbfe; margin-bottom: 3px; }
+    h1 .small { font-size: 0.4em; }
+    h1 a { text-decoration: none }
+    h2 { font-size: 1.5em; color: #23fbfe; }
+    h3 { text-align: center; color: #23fbfe; }
+    a { color: #23fbfe; }
+    .description { font-size: 1.2em; margin-bottom: 30px; margin-top: 30px; font-style: italic;}
+    .download { float: right; }
+    pre { background: #000; color: #fff; padding: 15px;}
+    hr { border: 0; width: 80%; border-bottom: 1px solid #aaa}
+    .footer { text-align:center; padding-top:30px; font-style: italic; }
+  </style>
+</head>
+
+<body>
+  <a href="http://github.com/sheyll/erl-mvn-distel"><img style="position: absolute; top: 0; right: 0; border: 0;" src="http://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub" /></a>
+
+  <div id="container">
+
+    <div class="download">
+      <a href="http://github.com/sheyll/erl-mvn-distel/zipball/master">
+        <img border="0" width="90" src="http://github.com/images/modules/download/zip.png"></a>
+      <a href="http://github.com/sheyll/erl-mvn-distel/tarball/master">
+        <img border="0" width="90" src="http://github.com/images/modules/download/tar.png"></a>
+    </div>
+
+    <h1><a href="http://github.com/sheyll/erl-mvn-distel">erl-mvn-distel</a>
+      <span class="small">by <a href="http://github.com/sheyll">sheyll</a></span></h1>
+
+    <div class="description">
+      Smoother integration erlang-plugin for maven with distel and emacs
+    </div>
+
+    <p>After the availability of the current (2.0.0) version of the maven erlang plugin, I was missing some kind of IDE support for working with mavenized erlang projects.
+I wrote this emacs mode in order to compile erlang buffers and run eunit tests. Because dependency management is done with maven, all dependencies can automatically downloaded and uploaded to an erlang node by maven. This emacs mode manages erlang nodes to which all code is uploaded either via maven or directly by distel on buffer modifications. This mode keeps track of sources that are part of maven erlang projects and automatically starts required erlang nodes for each project. </p><h2>Dependencies</h2>
+<p>This depends on:
+
+* maven erlang plugin version 2.0.0
+* most recent distel from github</p>
+<h2>Install</h2>
+<p>The ~/.emacs file should contain the statements necessary to load the erlang and 
+distel modes. Add the following lines _after_ Distel and Erlang mode:
+<code>
+    ;Erlang Maven and Distel intergration
+    (add-to-list 'load-path "<erl-mvn-distel-path>")
+    (require 'erl-mvn)
+    (erl-mvn-setup)
+</code></p>
+<h2>License</h2>
+<p>MIT Licence</p>
+<h2>Authors</h2>
+<p>Sven Heyll (sven.heyll@gmail.com)<br/><br/>      </p>
+<h2>Contact</h2>
+<p>Sven Heyll (sven.heyll@gmail.com)<br/>      </p>
+
+
+    <h2>Download</h2>
+    <p>
+      You can download this project in either
+      <a href="http://github.com/sheyll/erl-mvn-distel/zipball/master">zip</a> or
+      <a href="http://github.com/sheyll/erl-mvn-distel/tarball/master">tar</a> formats.
+    </p>
+    <p>You can also clone the project with <a href="http://git-scm.com">Git</a>
+      by running:
+      <pre>$ git clone git://github.com/sheyll/erl-mvn-distel</pre>
+    </p>
+
+    <div class="footer">
+      get the source code on GitHub : <a href="http://github.com/sheyll/erl-mvn-distel">sheyll/erl-mvn-distel</a>
+    </div>
+
+  </div>
+
+  
+</body>
+</html>
