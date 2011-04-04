@@ -9,7 +9,9 @@
 	 handle_end/3,
 	 handle_cancel/3,
 	 terminate/2,
-         run_test_file_line/2]).
+         run_test_file_line/2,
+         trace_test_file_line/2
+        ]).
 
 
 run_test(Test, SourceFile) ->
@@ -36,7 +38,6 @@ run_test_file_line(SourceFile, Line) ->
         _ ->
             []
     end.
-                
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% record definition section

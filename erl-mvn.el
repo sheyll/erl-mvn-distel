@@ -559,6 +559,7 @@ of line is 0 the complete module. The results will be displayed in a
 buffer and through graphical annotations. The argument must be a function 
 that returns the line to consider. It will be called after the switch to 
 the buffer containing the test."
+  (remove-overlays 'nil 'nil 'eunit-overlay 't)
   (erl-mvn-prepare-compilation-current-buffer)
   (erl-mvn-with-directories
    (lambda (source-dir test-source-dir fn-dir)
