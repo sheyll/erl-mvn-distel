@@ -38,7 +38,7 @@ get_line_of_function(SourceFile, Function, ArgCount) ->
                 SourceFile).
 
 
-get_module(Forms) ->
+get_module_attribute(Forms) ->
     lists:foldr(fun
                     ({attribute, _Line, module, Module}, _Acc) ->
                         {ok, Module};
@@ -51,7 +51,7 @@ get_module(Forms) ->
 foldr_mfals(F, Initial, SourceFile) ->
         case epp_dodger:quick_parse_file(SourceFile) of
         {ok, Forms} ->
-            case get_module(Forms) of
+            case get_module_attribute(Forms) of
                 {ok, Module} ->
                     lists:foldr(
                       fun 
@@ -72,3 +72,56 @@ foldr_mfals(F, Initial, SourceFile) ->
             {error, {parse_error, ParseError}}
     end.
 
+get_module(SourceFile) ->                
+        case epp_dodger:quick_parse_file(SourceFile) of
+        {ok, Forms} ->
+            case get_module_attribute(Forms) of
+                {ok, Module} ->
+                    {ok, Module};
+                NoModuleError ->
+                    NoModuleError
+            end;
+        ParseError ->
+            {error, {parse_error, ParseError}}
+    end.
+    
+
+foldr_mfalds(F, Initial, SourceFile) ->
+        case epp_dodger:quick_parse_file(SourceFile) of
+        {ok, Forms} ->
+            case get_module_attribute(Forms) of
+                {ok, _Module} ->
+                    lists:foldr(
+                      fun 
+                          (Form, Acc) ->
+                              case Form of
+                                  Fun = {function, _StartLine, _Name, _ArgCount, _Def} ->
+                                      F(Fun, Acc);
+                                  _ -> Acc
+                              end
+                      end,
+                      Initial,
+                      Forms);
+
+                NoModuleError ->
+                    NoModuleError
+            end;
+        ParseError ->
+            {error, {parse_error, ParseError}}
+    end.
+
+find_remote_calls(SourceFile) ->
+    F = fun(Def, Acc) ->
+               erl_syntax_lib:fold(
+                 fun
+                     ({call, _, {remote, _, {atom,_,Mod}, {atom, _, Fun}}, Args}, Acc2) ->
+                         sets:add_element({Mod, Fun, length(Args)}, Acc2);
+                     
+                     (_, Acc2) ->
+                         Acc2
+                 end, 
+                 Acc, 
+                 Def)
+        end,
+    foldr_mfalds(F, sets:new(), SourceFile).
+    

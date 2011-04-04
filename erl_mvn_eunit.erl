@@ -10,7 +10,7 @@
 	 handle_cancel/3,
 	 terminate/2,
          run_test_file_line/2,
-         trace_test_file_line/2
+         trace_test_file_line/3
         ]).
 
 
@@ -24,11 +24,14 @@ run_test(Test, SourceFile) ->
                   try eunit:test(Test, [Tty]) 
                   catch
                       _Class:_Exception -> 
-                          Master ! []
+                          Master ! {test_result, []}
                   end
           end),
     receive
-        Res -> Res
+        {test_result, Res} -> 
+            Res
+    after 10000 ->
+            []
     end.
 
 run_test_file_line(SourceFile, Line) ->
@@ -38,6 +41,53 @@ run_test_file_line(SourceFile, Line) ->
         _ ->
             []
     end.
+
+trace_test_file_line(SourceFile, TestSourceFile, Line) ->
+    {ok, Mod} = erl_mvn_source_utils:get_module(SourceFile),
+    {ok, TestMod} = erl_mvn_source_utils:get_module(TestSourceFile),
+    RemoteCalls = sets:to_list(
+                    sets:filter(
+                      fun({M, _, _}) ->
+                              not (lists:member(M, [error_logger, io, em]))
+                      end,
+                      sets:union(erl_mvn_source_utils:find_remote_calls(SourceFile), 
+                                 erl_mvn_source_utils:find_remote_calls(TestSourceFile)))),
+    Tracer = start_tracer([{TestMod, '_', '_'}, {Mod, '_', '_'} | RemoteCalls]),
+    TestResult = run_test_file_line(TestSourceFile, Line),
+    {ok, TraceResultRaw} = stop_tracer(Tracer),
+    TraceResult = lists:foldr(fun format_trace/2, [], TraceResultRaw),
+    {trace_test_result, TraceResult, TestResult}.
+
+
+start_tracer(TracePatterns) ->
+    spawn(fun() -> 
+                  [erlang:trace_pattern(TP, [], [local]) || TP <- TracePatterns],
+                  erlang:trace(new, true, [procs, return_to, call]),
+                  trace_loop([]) 
+          end).
+
+stop_tracer(P) ->
+    P ! {stop_tracer, self()},
+    receive 
+        {tracer_stopped, Result} -> 
+            {ok, Result}
+    after 1000 ->        
+            {error, timeout}
+    end.
+                                        
+trace_loop(Acc) ->                    
+    receive
+        {stop_tracer, From} ->
+            From ! {tracer_stopped,  lists:reverse(Acc)};
+        TraceMsg ->
+            trace_loop([TraceMsg | Acc])
+    end.
+
+format_trace({trace, Pid, call, {M, F, A}},Acc) ->
+    [lists:flatten(io_lib:format("~p  ~p:~p   ~p ~n", [Pid, M, F, A]))|Acc];
+format_trace(Other, Acc) ->
+    [lists:flatten(io_lib:format("~p ~n", [Other]))|Acc].    
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% record definition section
@@ -138,7 +188,7 @@ handle_cancel(_Arg, _Data, State) ->
 %%% @end
 %%%-----------------------------------------------------------------------------
 terminate(_, #state{test_results = R, report_to = Dest}) ->
-    Dest ! R.
+    Dest ! {test_result, R}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% internal function section
