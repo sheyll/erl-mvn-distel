@@ -150,12 +150,19 @@ get_error_line({throw, _What, [{_M, F, A}]}, SourceFile, _CurrentFun) ->
 get_error_line(_Other, SourceFile, {F, A}) -> 
     erl_mvn_source_utils:get_line_of_function(SourceFile, F, A).
 
+
 format_error({throw, What, [{_M, F, A}]}) ->
-    lists:flatten(io_lib:format("Exception ~w at ~w/~w~n~n", [What, F, A]));
-format_error({error, {Type, Reasons}, _Stack}) ->
+    lists:flatten(io_lib:format("Exception:~n~w~n~nat:~n~w/~w~n~n", [What, F, A]));        
+
+format_error({error, {Type, Reasons}, Stacktrace}) ->
     Expected = proplists:get_value(expected, Reasons),
     Expression = proplists:get_value(expression, Reasons),
     Actual = proplists:get_value(value, Reasons),
-    lists:flatten(io_lib:format("~w~n     Expected:~n          ~p~n     Actual:~n           ~p~n     Expression:~n          ~p~n~n", [Type, Expected, Actual, Expression]));
+    lists:flatten(io_lib:format("~w~nExpected:~n          ~p~n~nActual:~n           ~p~n~nExpression:~n          ~p~n~nat:~n~p~n~n", [Type, Expected, Actual, Expression, Stacktrace]));
+
+format_error({error, Reason, Stacktrace}) ->
+    lists:flatten(io_lib:format("Error:~n~p~n~nat:~n~p~n", [Reason, Stacktrace]));
+
 format_error({exit, Reason, Stacktrace}) ->
-    lists:flatten(io_lib:format("Exception:~n~p~n~nat:~n~p~n", [Reason, Stacktrace])).
+    lists:flatten(io_lib:format("Exit:~n~p~n~nat:~n~p~n", [Reason, Stacktrace])).
+
