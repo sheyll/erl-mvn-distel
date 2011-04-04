@@ -559,7 +559,6 @@ of line is 0 the complete module. The results will be displayed in a
 buffer and through graphical annotations. The argument must be a function 
 that returns the line to consider. It will be called after the switch to 
 the buffer containing the test."
-  (remove-overlays 'nil 'nil 'eunit-overlay 't)
   (erl-mvn-prepare-compilation-current-buffer)
   (erl-mvn-with-directories
    (lambda (source-dir test-source-dir fn-dir)
@@ -572,6 +571,7 @@ the buffer containing the test."
                 (line (apply line-fun '()))
                 (args (list erl-mvn-tmp-source-file line)))
            (setq erl-popup-on-output erl-mvn-popup-eunit-output)
+           (remove-overlays 'nil 'nil 'eunit-overlay 't)
            (setq erl-eunit-source-buffer (current-buffer))
            (erl-spawn
              (erl-send-rpc node 'erl_mvn_eunit 'run_test_file_line args)             
