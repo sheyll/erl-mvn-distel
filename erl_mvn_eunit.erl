@@ -46,28 +46,52 @@ trace_test_file_line(SourceFile, TestSourceFile, Line) ->
     {ok, Mod} = erl_mvn_source_utils:get_module(SourceFile),
     {ok, TestMod} = erl_mvn_source_utils:get_module(TestSourceFile),
     RemoteCalls = sets:to_list(
-                    sets:filter(
-                      fun({M, _, _}) ->
-                              not (lists:member(M, [error_logger, io, em]))
-                      end,
-                      sets:union(erl_mvn_source_utils:find_remote_calls(SourceFile), 
-                                 erl_mvn_source_utils:find_remote_calls(TestSourceFile)))),
-    Tracer = start_tracer([{TestMod, '_', '_'}, {Mod, '_', '_'} | RemoteCalls]),
-    TestResult = run_test_file_line(TestSourceFile, Line),
-    {ok, TraceResultRaw} = stop_tracer(Tracer),
-    TraceResult = lists:foldr(fun format_trace/2, [], TraceResultRaw),
+                    sets:union(erl_mvn_source_utils:find_remote_calls(SourceFile), 
+                               erl_mvn_source_utils:find_remote_calls(TestSourceFile))),
+
+    case erl_mvn_source_utils:get_test_for_line(TestSourceFile, Line) of
+        {ok, {TestMod, FunName}} ->
+            LineOfFun = erl_mvn_source_utils:get_line_of_function(TestSourceFile, FunName, 0),
+            Master = self(),
+            spawn(fun() ->
+                          start_tracer([{TestMod, '_', '_'}, {Mod, '_', '_'} | RemoteCalls]),                
+                          
+                          try TestMod:FunName() of
+                              _ ->
+                                  Master ! {set, [{ok, FunName, LineOfFun}]}
+                          catch 
+                              Class:Exception -> 
+                                  Master ! {set, [{error, FunName, LineOfFun, lists:flatten(io_lib:format("~w:~p", [Class, Exception]))}]}
+                          end
+                  end),
+            receive 
+                {set, T} -> 
+                    TestResult = T
+            after 10000 ->
+                    TestResult = [{error, FunName, LineOfFun, "test time out"}]
+            end,
+            {ok, TraceResultRaw} = stop_tracer(),
+            TraceResult = lists:foldr(fun format_trace/2, [], TraceResultRaw);
+
+        _ ->
+            TestResult = [],
+            TraceResult = [{"No Testfunction found on current line."}]
+    end,
     {trace_test_result, TraceResult, TestResult}.
 
 
 start_tracer(TracePatterns) ->
-    spawn(fun() -> 
-                  [erlang:trace_pattern(TP, [], [local]) || TP <- TracePatterns],
-                  erlang:trace(new, true, [procs, return_to, call]),
-                  trace_loop([]) 
-          end).
+    Master = self(),
+    register(
+      erl_mvn_eunit_tracer,
+      spawn(fun() -> 
+                    [erlang:trace_pattern(TP, [], [local]) || TP <- TracePatterns],
+                    erlang:trace(Master, true, [call, procs, send, 'receive', set_on_spawn]),
+                    trace_loop([]) 
+            end)).
 
-stop_tracer(P) ->
-    P ! {stop_tracer, self()},
+stop_tracer() ->
+    erl_mvn_eunit_tracer ! {stop_tracer, self()},
     receive 
         {tracer_stopped, Result} -> 
             {ok, Result}
@@ -84,9 +108,40 @@ trace_loop(Acc) ->
     end.
 
 format_trace({trace, Pid, call, {M, F, A}},Acc) ->
-    [lists:flatten(io_lib:format("~p  ~p:~p   ~p ~n", [Pid, M, F, A]))|Acc];
+    MF = lists:flatten(io_lib:format("~w:~w", [M,F])),
+    [{Pid, lists:flatten(io_lib:format   ("~-10w  -- ( ) -->  ~-31s ~130p~n~n", [Pid, MF, A]))}| Acc];
+
+format_trace({trace, Pid, 'receive', Msg},Acc) ->
+    [{Pid, lists:flatten(io_lib:format   ("~-10w  <---------  ~130p~n~n", [Pid, Msg]))}| Acc];
+
+format_trace({trace, From, send, Msg, To},Acc) ->
+    [{From, lists:flatten(io_lib:format  ("~-10w  --------->  ~-31w ~130p~n~n", [From, To, Msg]))}| Acc];
+
+format_trace({trace, Pid, 'register', Name},Acc) ->
+    [{Pid, lists:flatten(io_lib:format   ("~-10w   REGISTER   ~w~n~n", [Pid, Name]))}| Acc];
+
+format_trace({trace, Pid, 'unregister', Name},Acc) ->
+    [{Pid, lists:flatten(io_lib:format   ("~-10w  UNREGISTER  ~w~n~n", [Pid, Name]))}| Acc];
+
+format_trace({trace, Parent, spawn, Child, How},Acc) ->
+    [{Parent, lists:flatten(io_lib:format("~-10w  --- * --->  ~-31w ~130p~n~n", [Parent, Child, How]))}| Acc];
+
+format_trace({trace, Left, link, Right},Acc) ->
+    [{Left, lists:flatten(io_lib:format  ("~-10w  ===8======  ~-10w~n~n", [Left, Right]))},
+     {Right, lists:flatten(io_lib:format ("~-10w  ======8===  ~-10w~n~n", [Right, Left]))}
+     | Acc];
+
+format_trace({trace, Left, unlink, Right},Acc) ->
+    [{Left, lists:flatten(io_lib:format  ("~-10w  ===/  /===  ~-10w~n~n", [Left, Right]))}| Acc];
+
+format_trace({trace, Left, getting_unlinked, Right},Acc) ->
+    [{Left, lists:flatten(io_lib:format  ("~-10w  ===/  /===  ~-10w~n~n", [Left, Right]))}| Acc];
+
+format_trace({trace, Pid, exit, Reason},Acc) ->
+    [{Pid, lists:flatten(io_lib:format   ("~-10w  ***EXIT***  ~130p~n~n", [Pid, Reason]))}| Acc];
+
 format_trace(Other, Acc) ->
-    [lists:flatten(io_lib:format("~p ~n", [Other]))|Acc].    
+    [{lists:flatten(io_lib:format("~p ~n~n", [Other]))}|Acc].
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

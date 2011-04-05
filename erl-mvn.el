@@ -100,6 +100,9 @@
                                 (test-function . 
                                                (menu-item "Eunit-test Function" 
                                                           erl-mvn-eunit-test-function :keys "C-c C-v t or F6"))
+                                (trace-test-function . 
+                                               (menu-item "Eunit-test Function(Traced)" 
+                                                          erl-mvn-eunit-test-function-trace :keys "C-c C-v T or S-F6"))
                                 (test-module . 
                                              (menu-item "Eunit-test Module" 
                                                         erl-mvn-eunit-test-module :keys "C-c C-v T or F7"))
@@ -121,10 +124,12 @@
 
     (define-key the-map [?\C-c ?\C-v ?s] 'erl-mvn-toggle-source-test)
     (define-key the-map [?\C-c ?\C-v ?t] 'erl-mvn-eunit-test-function)
+    (define-key the-map [?\C-c ?\C-v ?T] 'erl-mvn-eunit-test-function-trace)
     (define-key the-map (kbd "C-c C-v C-t") 'erl-mvn-eunit-test-module)
 
     (define-key the-map (kbd "<f5>") 'erl-mvn-toggle-source-test)
     (define-key the-map (kbd "<f6>") 'erl-mvn-eunit-test-function)
+    (define-key the-map (kbd "<S-f6>") 'erl-mvn-eunit-test-function-trace)
     (define-key the-map (kbd "<f7>") 'erl-mvn-eunit-test-module)
     the-map)
     "Erl Mvn minor mode keymap.")
@@ -157,23 +162,47 @@ Null prefix argument turns off the mode.
     (start-process tmp-node-name (format "*%s*" tmp-node-name) erl-mvn-xterm-executable "-e" 
                    (format "%s -remsh %s -name %s" erl-mvn-erlang-executable node-name tmp-node-name))))
 
+(defun erl-mvn-get-source-and-test-source()
+  "Private function. Returns Source directory and test source directory of the current buffer."
+  (erl-mvn-with-directories
+   (lambda (source-dir test-source-dir fn-dir)
+     (cond 
+      ((string= fn-dir test-source-dir)
+       (let ((file-name (file-name-nondirectory buffer-file-name)))
+         (string-match "^\\(.+\\)_test.erl$" file-name)
+         (let ((source-file-name 
+                (concat source-dir (replace-match "\\1.erl" 'nil 'nil file-name))))
+           (list source-file-name buffer-file-name))))
+      ((string= fn-dir source-dir)
+       (let ((file-name (file-name-nondirectory buffer-file-name)))
+         (string-match "^\\(.+\\).erl$" file-name)
+         (let ((test-source-file-name 
+                (concat test-source-dir (replace-match "\\1_test.erl" 'nil 'nil file-name))))
+           (list buffer-file-name test-source-file-name))))))))
+
 (defun erl-mvn-toggle-source-test ()
   "If the buffer is a relevant erlang buffer open the appropriate test source, or
-if the buffer-file is in the test sources folder, visit the source."
+if the buffer-file is in the test sources folder, visit the source. This function 
+returns either the source file name or the test source file name."
   (interactive)
   (erl-mvn-with-directories 
    (lambda (source-dir test-source-dir fn-dir)
-     (cond 
-         ((string= fn-dir test-source-dir)
-          (let ((file-name (file-name-nondirectory buffer-file-name)))
-            (string-match "^\\(.+\\)_test.erl$" file-name)
-            (let ((target-file-name (concat source-dir (replace-match "\\1.erl" 'nil 'nil file-name))))
-              (find-file target-file-name))))
-         ((string= fn-dir source-dir)
-          (let ((file-name (file-name-nondirectory buffer-file-name)))
-            (string-match "^\\(.+\\).erl$" file-name)
-            (let ((target-file-name (concat test-source-dir (replace-match "\\1_test.erl" 'nil 'nil file-name))))
-              (find-file target-file-name))))))))
+     (let ((prev-file-name buffer-file-name))
+       (cond 
+        ((string= fn-dir test-source-dir)
+         (let ((file-name (file-name-nondirectory buffer-file-name)))
+           (string-match "^\\(.+\\)_test.erl$" file-name)
+           (let ((target-file-name 
+                  (concat source-dir (replace-match "\\1.erl" 'nil 'nil file-name))))
+             (find-file target-file-name)
+             prev-file-name)))
+        ((string= fn-dir source-dir)
+         (let ((file-name (file-name-nondirectory buffer-file-name)))
+           (string-match "^\\(.+\\).erl$" file-name)
+           (let ((target-file-name 
+                  (concat test-source-dir (replace-match "\\1_test.erl" 'nil 'nil file-name))))
+             (find-file target-file-name)
+             prev-file-name))))))))
 
 (defun erl-mvn-compile-project(pom-file)
   "Asks for a pom to open. And compile the project using maven."
@@ -553,8 +582,58 @@ Ignores modules not in the test source directory."
   (interactive)
   (erl-mvn-eunit-run-at-line (lambda() 0)))
   
+(defun erl-mvn-eunit-test-function-trace()
+  "Private function. Runs either the eunit test for a complete module or the test function under the cursor.
+Ignores modules not in the test source directory."
+  (interactive)
+  (erl-mvn-eunit-run-at-line-trace (lambda() (line-number-at-pos))))
+
+(defun erl-mvn-eunit-run-at-line-trace(line-fun)
+  "Private function. This is similar to erl-mvn-eunit-run-at-line, except that trace output is 
+ captured and shown in a seperate buffer."
+  (erl-mvn-prepare-compilation-current-buffer)
+  (erl-mvn-with-directories
+   (lambda (source-dir test-source-dir fn-dir)
+     (if (string= fn-dir source-dir)
+         (erl-mvn-toggle-source-test))
+     (if (erl-mvn-is-relevant-erl-buffer)
+         (let* ((node-name (erl-mvn-make-node-name erl-mvn-artifact-id))
+                (erl-popup-on-output-old erl-popup-on-output)             
+                (node (make-symbol node-name))
+                (line (apply line-fun '()))
+                (source-under-test (car (erl-mvn-get-source-and-test-source)))
+                (args (list source-under-test erl-mvn-tmp-source-file line)))
+           (setq key-to-color '())
+           (setq erl-popup-on-output erl-mvn-popup-eunit-output)
+           (remove-overlays 'nil 'nil 'eunit-overlay 't)
+           (setq erl-eunit-source-buffer (current-buffer))
+           (erl-spawn
+             (erl-send-rpc node 'erl_mvn_eunit 'trace_test_file_line args)             
+             (erl-receive (erl-popup-on-output-old erl-eunit-source-buffer)
+                 ((['rex ['trace_test_result trace-result test-result]]
+                   (erl-mvn-show-eunit-results test-result erl-eunit-source-buffer)              
+                   (save-excursion
+                     (with-current-buffer (get-buffer-create "*erl-mvn-trace-output*")	  
+                       (save-selected-window        
+                         (select-window (or (get-buffer-window (current-buffer))
+                                            (display-buffer (current-buffer)))))
+                       (let ((old-kill-ring (copy-list kill-ring)))
+                         (kill-region (point-min) (point-max))
+                         (mapcar 
+                          (lambda (e)
+                            (mcase e
+
+                              ([line]
+                               (erl-mvn-insert-with-color "white" "black" line))
+
+                              ([pid line]
+                               (erl-mvn-insert-with-color (erl-mvn-get-color-for-string pid) "black" line))))
+                          trace-result)
+                         (setq kill-ring old-kill-ring))))                   
+                   (setq erl-popup-on-output erl-popup-on-output-old))))))))))
+
 (defun erl-mvn-eunit-run-at-line(line-fun)
-  "Private function. Runs a a single test function near the point, or 
+  "Private function. Runs a single test function near the point, or 
 of line is 0 the complete module. The results will be displayed in a 
 buffer and through graphical annotations. The argument must be a function 
 that returns the line to consider. It will be called after the switch to 
@@ -823,6 +902,57 @@ c) (d) (e f)) --> (a b c d e f)."
 (defun erl-mvn-make-mvn-output-buffer-name(str)
   "Private function. Converts a string to a good name for a maven output buffer"
   (erl-mvn-make-buffer-name (concat "erl-mvn-maven-output-" str)))
+
+(defun erl-mvn-insert-with-color(bg-col fg-col text)
+  "Private function. Inserts text into to buffer with a background color. 
+NOTE: will not work when inserting into a buffer with font-lock-mode turned on."
+  (put-text-property 0 (length text) 'face `(:background ,bg-col :foreground ,fg-col) text)
+  (insert text))
+
+(setq key-to-color '())
+
+(defun erl-mvn-get-color-for-string(key)
+  (if (assoc key key-to-color)
+      (cdr (assoc key key-to-color))
+    (let ((new-color 
+           (do
+               ((col (random-light-color 500)))
+               ((not (find-by-value col key-to-color)) col))))
+      (add-to-list 'key-to-color `(,key . ,new-color))
+      new-color)))
+
+(defun random-light-color(max-light)
+  "Private function. Return a random color  with each r + g + b < max-light."
+  (let* ((r (float (random 255)))
+         (g (float (random 255)))
+         (b (float (random 255)))
+         (rst (- max-light (+ r g b)))
+         (lr (+ (* rst (/ r (+ r g b))) r))
+         (lg (+ (* rst (/ g (+ r g b))) g))
+         (lb (+ (* rst (/ b (+ r g b))) b))
+         (dr (max 0 (- lr 255)))
+         (dg (max 0 (- lg 255)))
+         (db (max 0 (- lb 255)))
+         (fr (floor (min 255 (+ lr (/ (+ dg db) 2)))))
+         (fg (floor (min 255 (+ lg (/ (+ dr db) 2)))))
+         (fb (floor (min 255 (+ lb (/ (+ dr db) 2))))))
+    (+ fr fg fb)
+    (format "#%02x%02x%02x" fr fg fb)))
+
+(defun find-by-value(value alist)
+  "Private Function. Returns the first pair whith cdr == value from alist."
+  (let ((res 'nil))
+    (mapcar 
+     (lambda (e)
+       (if (and
+            (not alist) 
+            (equal (cdr e) value))
+           (setq res e)))
+     alist)
+    res))
+      
+  
+
 
 ;; ----------------------------------------------------------------------
 ;;  Tests
