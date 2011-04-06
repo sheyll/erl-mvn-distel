@@ -53,21 +53,20 @@ trace_test_file_line(SourceFile, TestSourceFile, Line) ->
         {ok, {TestMod, FunName}} ->
             LineOfFun = erl_mvn_source_utils:get_line_of_function(TestSourceFile, FunName, 0),
             Master = self(),
+	    start_tracer([{TestMod, '_', '_'}, {Mod, '_', '_'} | RemoteCalls]),
             spawn(fun() ->
-                          start_tracer([{TestMod, '_', '_'}, {Mod, '_', '_'} | RemoteCalls]),                
-                          
-                          try TestMod:FunName() of
-                              _ ->
-                                  Master ! {set, [{ok, FunName, LineOfFun}]}
-                          catch 
-                              Class:Exception -> 
-                                  Master ! {set, [{error, FunName, LineOfFun, lists:flatten(io_lib:format("~w:~p", [Class, Exception]))}]}
-                          end
-                  end),
+			  try TestMod:FunName() of
+			      _ ->
+				  Master ! {set, [{ok, FunName, LineOfFun}]}
+			  catch 
+			      Class:Exception -> 
+				  Master ! {set, [{error, FunName, LineOfFun, lists:flatten(io_lib:format("~w:~p", [Class, Exception]))}]}
+			  end
+		  end),
             receive 
                 {set, T} -> 
                     TestResult = T
-            after 10000 ->
+            after 5000 ->
                     TestResult = [{error, FunName, LineOfFun, "test time out"}]
             end,
             {ok, TraceResultRaw} = stop_tracer(),
@@ -81,14 +80,20 @@ trace_test_file_line(SourceFile, TestSourceFile, Line) ->
 
 
 start_tracer(TracePatterns) ->
-    Master = self(),
+    Parent = self(),
     register(
       erl_mvn_eunit_tracer,
       spawn(fun() -> 
                     [erlang:trace_pattern(TP, [], [local]) || TP <- TracePatterns],
-                    erlang:trace(Master, true, [call, procs, send, 'receive', set_on_spawn]),
+                    erlang:trace(Parent, true, [call, procs, send, 'receive', set_on_spawn]),
+		    Parent ! tracer_started,
                     trace_loop([]) 
-            end)).
+            end)),
+    receive 
+	tracer_started -> ok
+    after 1000 ->
+	    throw (timeout)
+    end.
 
 stop_tracer() ->
     erl_mvn_eunit_tracer ! {stop_tracer, self()},
@@ -109,13 +114,13 @@ trace_loop(Acc) ->
 
 format_trace({trace, Pid, call, {M, F, A}},Acc) ->
     MF = lists:flatten(io_lib:format("~w:~w", [M,F])),
-    [{Pid, lists:flatten(io_lib:format   ("~-10w  -- ( ) -->  ~-31s ~130p~n~n", [Pid, MF, A]))}| Acc];
+    [{Pid, lists:flatten(io_lib:format   ("~-10w  ~-48s ~130p~n~n", [Pid, MF, A]))}| Acc];
 
 format_trace({trace, Pid, 'receive', Msg},Acc) ->
-    [{Pid, lists:flatten(io_lib:format   ("~-10w  <---------  ~130p~n~n", [Pid, Msg]))}| Acc];
+    [{Pid, lists:flatten(io_lib:format   ("~-10w  <---------                                       ~130p~n~n", [Pid, Msg]))}| Acc];
 
 format_trace({trace, From, send, Msg, To},Acc) ->
-    [{From, lists:flatten(io_lib:format  ("~-10w  --------->  ~-31w ~130p~n~n", [From, To, Msg]))}| Acc];
+    [{From, lists:flatten(io_lib:format  ("~-10w  --------->  ~-36w ~130p~n~n", [From, To, Msg]))}| Acc];
 
 format_trace({trace, Pid, 'register', Name},Acc) ->
     [{Pid, lists:flatten(io_lib:format   ("~-10w   REGISTER   ~w~n~n", [Pid, Name]))}| Acc];
@@ -124,7 +129,7 @@ format_trace({trace, Pid, 'unregister', Name},Acc) ->
     [{Pid, lists:flatten(io_lib:format   ("~-10w  UNREGISTER  ~w~n~n", [Pid, Name]))}| Acc];
 
 format_trace({trace, Parent, spawn, Child, How},Acc) ->
-    [{Parent, lists:flatten(io_lib:format("~-10w  --- * --->  ~-31w ~130p~n~n", [Parent, Child, How]))}| Acc];
+    [{Parent, lists:flatten(io_lib:format("~-10w  --- * --->  ~-36w ~130p~n~n", [Parent, Child, How]))}| Acc];
 
 format_trace({trace, Left, link, Right},Acc) ->
     [{Left, lists:flatten(io_lib:format  ("~-10w  ===8======  ~-10w~n~n", [Left, Right]))},
