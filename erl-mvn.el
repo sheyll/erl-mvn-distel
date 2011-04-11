@@ -567,6 +567,8 @@ just one node."
   (sleep-for 0.2)
   (erpc node 'c 'c (list (concat erl-mvn-erl-source-path "erl_mvn_eunit.erl") `([outdir ,erl-mvn-erl-source-path])))
   (sleep-for 0.2)
+  (erpc node 'c 'c (list (concat erl-mvn-erl-source-path "erl_mvn_test_trace.erl") `([outdir ,erl-mvn-erl-source-path])))
+  (sleep-for 0.2)
   (erpc node 'c 'c (list (concat erl-mvn-erl-source-path "erl_mvn_source_utils.erl") `([outdir ,erl-mvn-erl-source-path])))
   (sleep-for 0.2))
 
@@ -608,7 +610,7 @@ Ignores modules not in the test source directory."
            (remove-overlays 'nil 'nil 'eunit-overlay 't)
            (setq erl-eunit-source-buffer (current-buffer))
            (erl-spawn
-             (erl-send-rpc node 'erl_mvn_eunit 'trace_test_file_line args)             
+             (erl-send-rpc node 'erl_mvn_test_trace 'trace_test_file_line args)             
              (erl-receive (erl-popup-on-output-old erl-eunit-source-buffer)
                  ((['rex ['trace_test_result trace-result test-result]]
                    (erl-mvn-show-eunit-results test-result erl-eunit-source-buffer)              
@@ -718,7 +720,7 @@ compiling a source file of a project identified by a maven
 project artifact-id."
   (append `(debug_info return verbose export_all ,(tuple 'outdir output-dir))
           (mapcar (lambda(dir) (tuple 'i dir)) 
-                  (cadr (assoc artifact-id erl-mvn-include-paths)))))
+                  (reverse (cadr (assoc artifact-id erl-mvn-include-paths))))))
 
 (defun erl-mvn-show-compilation-results(errors warnings mark-errors-buffer)
   "Private function. Show a buffer with formatted erlang
