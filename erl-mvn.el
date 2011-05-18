@@ -849,9 +849,12 @@ all exiting warning face properties."
       (mapcar
        (lambda (e)
          (mlet (file line reason) e
-           (if (string= file erl-mvn-tmp-source-file)
+           (if (or 
+                (string= file buffer-file-name)
+                (string= file erl-mvn-tmp-source-file))
                (mlet (start-pos end-pos) (erl-mvn-get-line-pos line)
                  (let ((ov (make-overlay start-pos end-pos)))
+                   (message "erl-mvn-distel compilation error %s: %s" file reason)
                    (overlay-put ov 'compilation-error-overlay 't)
                    (overlay-put ov 'font-lock-face 'font-lock-warning-face)
                    (overlay-put ov 'help-echo  (format "Problem: %s" reason)))))))
