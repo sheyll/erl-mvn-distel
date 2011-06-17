@@ -1,6 +1,22 @@
 TODOs
 -----
 
+* Add "Refresh Maven Project"
+* Add remove whitespace at end
+* add menu for other sources
+* If multiple buffers are visible and the user presses "f5" select another buffer to show the test/source in
+* if an compile error is present do not run tests and show clear error
+* allow printf debugging
+* extend project identifaction mechanism replacing the ubiquitous artifactid by a triple of groupid, artifactid, verion(GAV) 
+* when switching to a dependen module try to find the actual project and open the real source...
+* if the real source could not be found - mark the buffer read only
+
+
+
+
+
+
+
 * Fix bug: when eunit fails with 'undef' no output is visible
 
 * Improve color theme for eunit failure and compile errors
@@ -25,7 +41,6 @@ TODOs
   - create cast
   - create call
 
-* extend project identifaction mechanism replacing the ubiquitous artifactid by a triple of groupid, artifactid, verion(GAV) 
 
 * improve error handling where appropriate
 
