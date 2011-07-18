@@ -3,6 +3,7 @@
 (require 'application-skeleton)
 (require 'supervisor-skeleton)
 (require 'gen-server-skeleton)
+(require 'gen-fsm-skeleton)
 ;; ----------------------------------------------------------------------
 ;;  Global Vars
 ;; ----------------------------------------------------------------------
@@ -78,6 +79,12 @@
                       (erl-mvn "Maven" . 
                                (keymap                          
                                 
+                                (sep0 . (menu-item "Maven:"))
+                                (sep0a . (menu-item "--"))
+                                (refresh-project-skel . 
+                                                 (menu-item "Refresh Project" 
+                                                            erl-mvn-refresh-project :keys "C-c C-v r"))
+
                                 (sep1 . (menu-item "Skeletons:"))
                                 (sep1a . (menu-item "--"))
                                 (application-skel . 
@@ -89,6 +96,9 @@
                                 (gen-server-skeleton . 
                                                      (menu-item "Gen-Server" 
                                                                 gen-server-skeleton :keys "C-c C-v g"))
+                                (gen-fsm-skeleton . 
+                                                     (menu-item "Gen-Fsm" 
+                                                                gen-fsm-skeleton :keys "C-c C-v f"))
                                 (sep1e . (menu-item "--"))
 
                                 
@@ -113,11 +123,9 @@
                                 (run-erlang-console . 
                                                     (menu-item "Erlang Node Remoteshell" 
                                                                erl-mvn-erlang-node-remote-shell))
-                                (sep3b . (menu-item "--"))
-                                (close . 
-                                       (menu-item "Shutdown Erlang Node" 
-                                                  erl-mvn-close-current-project))
                                 )))))))
+    (define-key the-map (kbd "C-c C-v r") 'refresh-project)
+
     (define-key the-map (kbd "C-c C-v a") 'application-skeleton)
     (define-key the-map (kbd "C-c C-v u") 'supervisor-skeleton)
     (define-key the-map (kbd "C-c C-v g") 'gen-server-skeleton)
@@ -154,6 +162,11 @@ Null prefix argument turns off the mode.
 ;;  Startup and shutdown functions.
 ;; ----------------------------------------------------------------------
 
+(defun erl-mvn-refresh-project()
+  "Kills the current erlang node the buffer is associated to, runs maven compile and refreshes all buffers. Use this when dependencies must be updated or the current erlang node is stuck."
+  (interactive)
+  (erl-mvn-compile-current-project))
+
 (defun erl-mvn-erlang-node-remote-shell()
   "Open the terminal program defined in the variable erl-mvn-xterm-executable."
   (interactive)
@@ -163,7 +176,7 @@ Null prefix argument turns off the mode.
                    (format "%s -remsh %s -name %s" erl-mvn-erlang-executable node-name tmp-node-name))))
 
 (defun erl-mvn-get-source-and-test-source()
-  "Private function. Returns Source directory and test source directory of the current buffer."
+  "Private function. Returns the source and test source filename matching the current buffer."
   (erl-mvn-with-directories
    (lambda (source-dir test-source-dir fn-dir)
      (cond 
@@ -204,8 +217,10 @@ returns either the source file name or the test source file name."
              (find-file target-file-name)
              prev-file-name))))))))
 
+
+
 (defun erl-mvn-compile-project(pom-file)
-  "Asks for a pom to open. And compile the project using maven."
+  "Asks for a pom to open. And compile the project using maven, starting an erlang node as a side effect."
   (interactive 
      (let ((pom-file 
 	    (read-file-name "Open POM: " 
@@ -216,17 +231,13 @@ returns either the source file name or the test source file name."
   (erl-mvn-start-erlang-and-compile-project pom-file))
 
 (defun erl-mvn-compile-current-project()
-  "Compiles the project that the current buffer belongs to using maven."
+  "Compiles the project that the current buffer belongs to using maven, starting an erlang node as a side effect."
   (interactive)
   (let ((pom-file (erl-mvn-find-pom (file-name-directory buffer-file-name))))
     (erl-mvn-start-erlang-and-compile-project pom-file)))
 
 (defun erl-mvn-start-erlang-and-compile-project(pom-file)
-  "If the pomfile describes a not already open project, a buffer
-will be created containing a description of the project and the
-associated assets. 
-
-An erlang node will be started, and maven compile will be executed
+  "An erlang node will be started, and maven compile will be executed
 with the erlang node as target for module upload. 
 
 Distel modules are deployed to the erlang node, and all distel function 
@@ -243,21 +254,6 @@ Automatic recompilation on saving erlang sources in that project is activated."
 	      (add-to-list 'erl-mvn-open-projects artifact-id)
 	      (erl-mvn-compile-project-maven pom-file)))
 	  (erl-mvn-refresh-buffers))))
-
-(defun erl-mvn-close-current-project()
-  "Closes a project opened with erl-mvn-open-project. Removes all processes and buffers associated to the artifact-id of the project. The project that is closed is determined by the current buffer."
-  (interactive)
-  (let* ((pom (erl-mvn-find-pom (file-name-directory buffer-file-name)))
-	 (artifact-id (erl-mvn-pom-lookup pom 'artifactId)))
-    (setq erl-mvn-open-projects (delete artifact-id erl-mvn-open-projects))
-    (let* ((node-name (erl-mvn-make-node-name artifact-id))
-	 (erl-buf (erl-mvn-make-buffer-name node-name)))
-      (cond ((erl-mvn-node-running node-name)
-	     (delete-process erl-buf)
-	     (kill-buffer erl-buf))))
-    (kill-buffer 
-     (erl-mvn-make-mvn-output-buffer-name artifact-id))
-    (erl-mvn-refresh-buffers)))
 
 (defun erl-mvn-setup()
   "Adds the compile function to the save hooks of erlang files."
@@ -281,8 +277,8 @@ Automatic recompilation on saving erlang sources in that project is activated."
    (lambda ()
      (let ((pom (erl-mvn-find-pom (file-name-directory buffer-file-name))))
        (cond (pom              
-              (if (not (or (erl-mvn-node-running-for-pom pom)
-                           (not erl-mvn-auto-start-maven-node)))
+              (if (and (not (erl-mvn-node-running-for-pom pom))
+                       erl-mvn-auto-start-maven-node)
                   (erl-mvn-compile-current-project))
 	      (erl-mvn-setup-buffer (current-buffer)))))))
   (add-hook 'after-save-hook 
@@ -435,8 +431,10 @@ buffer, so the user is able to follow the output."
                           mvn-output-buffer
                           't   ; redisplay
                           "-f" pom
+                          "-U" ; update dependencies                          
                           (concat "-Dremote=" node-name)
                           "-DwithDependencies=true"
+                          "clean"
                           "erlang:show-build-info"
 			  "erlang:upload-tests")
             (setq buffer-read-only 't)
@@ -498,15 +496,16 @@ character will be discarded"
   "Private function. Starts an erlang node for the node-name that
 can be used by maven for tests and debug code"
   (if (erl-mvn-node-running node-name)
-      (message (concat "Node already running: " node-name))
-    (progn
-      (message (concat "Starting node name: " node-name))            
-      (start-process (erl-mvn-make-buffer-name node-name)
-		     (erl-mvn-make-buffer-name node-name)
-		     erl-mvn-erlang-executable
-		     "-name" node-name)
-      (sleep-for 1)
-      (erl-mvn-prepare-erlang-node node-name))))
+      (progn 
+        (message (concat "Node already running: " node-name))
+        (kill-buffer (erl-mvn-make-buffer-name node-name))))
+  (message (concat "Starting node name: " node-name))            
+  (start-process (erl-mvn-make-buffer-name node-name)
+                 (erl-mvn-make-buffer-name node-name)
+                 erl-mvn-erlang-executable
+                 "-name" node-name)
+  (sleep-for 1)
+  (erl-mvn-prepare-erlang-node node-name))
 
 
 (defun erl-mvn-node-running-for-pom(pom-file)
@@ -666,7 +665,7 @@ the buffer containing the test."
 Adds to the codepath all necessare dependencies and load the erl-mvn helper modules to the erlang node for that buffer."
   (let* ((node-name (erl-mvn-make-node-name erl-mvn-artifact-id))
          (node (make-symbol node-name)))
-    (make-directory erl-mvn-output-dir 'parents)
+    (make-directory erl-mvn-output-dir 1)
     (write-region (point-min) (point-max) erl-mvn-tmp-source-file)))
 
 (defun erl-mvn-compile-buffer (load-module)

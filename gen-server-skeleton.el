@@ -21,8 +21,15 @@
   "Generate a gen-server template for a module."
   (format 
    "%%%%%%=============================================================================
-%%%%%% @author Name  <user@domain>
-%%%%%% @copyright (C) 2011, ACME
+%%%%%%                                        
+%%%%%%               |  ° __   _|  _  __  |_   _       _ _   (TM)
+%%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | | 
+%%%%%%
+%%%%%% @author Sven Heyll <sven.heyll@lindenbaum.eu>
+%%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
+%%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
+%%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
+%%%%%% @copyright (C) 2011, Lindenbaum GmbH
 %%%%%%
 %%%%%% @doc
 %%%%%% Documentation for this server.
@@ -115,9 +122,17 @@ code_change(_OldVsn, State, _Extra) ->
 (defun gen-server-test-source-template(module)
   "Generate a gen-server test template for a module."
   (format 
-   "%%%%%%-----------------------------------------------------------------------------
-%%%%%% @author Name  <user@domain>
-%%%%%% @copyright (C) 2011, ACME
+   "%%%%%%=============================================================================
+%%%%%%                                        
+%%%%%%               |  ° __   _|  _  __  |_   _       _ _   (TM)
+%%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | | 
+%%%%%%
+%%%%%% @author Sven Heyll <sven.heyll@lindenbaum.eu>
+%%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
+%%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
+%%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
+%%%%%% @copyright (C) 2011, Lindenbaum GmbH
+%%%%%%
 %%%%%%-----------------------------------------------------------------------------
 
 -module(%s_test).

@@ -19,9 +19,18 @@
 
 (defun supervisor-source-template(module)
   "Generate a supervisor template for a module."
-  (format "%%%%%%=============================================================================
-%%%%%% @author Name <user@domain>
-%%%%%% @copyright (C) 2011, ACME
+  (format 
+   "%%%%%%=============================================================================
+%%%%%%                                        
+%%%%%%               |  ° __   _|  _  __  |_   _       _ _   (TM)
+%%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | | 
+%%%%%%
+%%%%%% @author Sven Heyll <sven.heyll@lindenbaum.eu>
+%%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
+%%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
+%%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
+%%%%%% @copyright (C) 2011, Lindenbaum GmbH
+%%%%%%
 %%%%%% @doc
 %%%%%% @end
 %%%%%%=============================================================================
@@ -72,9 +81,18 @@ init(_Config) ->
 
 (defun supervisor-test-source-template(module)
   "Generate a supervisor test template for a module."
-  (format "%%%%%%=============================================================================
-%%%%%% @author Name <user@domain>
-%%%%%% @copyright (C) 2011, ACME
+  (format 
+   "%%%%%%=============================================================================
+%%%%%%                                        
+%%%%%%               |  ° __   _|  _  __  |_   _       _ _   (TM)
+%%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | | 
+%%%%%%
+%%%%%% @author Sven Heyll <sven.heyll@lindenbaum.eu>
+%%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
+%%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
+%%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
+%%%%%% @copyright (C) 2011, Lindenbaum GmbH
+%%%%%%
 %%%%%%=============================================================================
 -module(%s_test).
 
