@@ -26,8 +26,8 @@
 %%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | | 
 %%%%%%
 %%%%%% @author Sven Heyll <sven.heyll@lindenbaum.eu>
-%%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
+%%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
 %%%%%% @copyright (C) 2011, Lindenbaum GmbH
 %%%%%%
@@ -52,6 +52,7 @@
          code_change/3]).
 
 -define(SERVER, ?MODULE). 
+-registered([?MODULE]).
 
 -record(state, 
         {}).
@@ -81,26 +82,23 @@ init([]) ->
 %%%%------------------------------------------------------------------------------
 %%%% @private
 %%%%------------------------------------------------------------------------------
-handle_call(request, _From, 
-            State = #state{}) ->
-    {reply, ok, State};
+handle_call(Request, From, State) ->
+    report(error, [unexpected_call, {from, From}, {request, Request}]),
+    {stop, unexpected_call, {undefined, Request}, State}.
 
-handle_call(_Request, _From, State) ->
-    utils:default_handle_call(State).
-
-
-handle_cast(request,
-            State = #state{}) ->
-    {noreply, State};
-
-handle_cast(_Request, State) ->
-    utils:default_handle_cast(State).
+%%%%------------------------------------------------------------------------------
+%%%% @private
+%%%%------------------------------------------------------------------------------
+handle_cast(Request, State) ->
+    report(error, [unexpected_cast, {request, Request}]),
+    {stop, unexpected_cast, State}.
 
 %%%%------------------------------------------------------------------------------
 %%%% @private
 %%%%------------------------------------------------------------------------------
 handle_info(Info, State) ->
-    utils:default_handle_info(application_name_here, Info, ?MODULE, State).
+    report(error, [unexpected_info, {info, Info}]),
+    {noreply, State}.
 
 %%%%------------------------------------------------------------------------------
 %%%% @private
@@ -117,6 +115,18 @@ code_change(_OldVsn, State, _Extra) ->
 %%%%%%=============================================================================
 %%%%%% Internal Functions
 %%%%%%=============================================================================
+
+%%%%------------------------------------------------------------------------------
+%%%% @private
+%%%%------------------------------------------------------------------------------
+-spec report(info | error, [atom() | {atom(), term()}]) -> ok.
+report(info, Report) ->
+    DefaultReport = [{module, ?MODULE}, {server, self()}],
+    error_logger:info_report(application_name_here, DefaultReport ++ Report);
+report(error, Report) ->
+    DefaultReport = [{module, ?MODULE}, {server, self()}],
+    error_logger:error_report(application_name_here, DefaultReport ++ Report).
+
 " module))
 
 (defun gen-server-test-source-template(module)
@@ -128,8 +138,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | | 
 %%%%%%
 %%%%%% @author Sven Heyll <sven.heyll@lindenbaum.eu>
-%%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
+%%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
 %%%%%% @copyright (C) 2011, Lindenbaum GmbH
 %%%%%%
@@ -139,23 +149,39 @@ code_change(_OldVsn, State, _Extra) ->
 
 -include_lib(\"eunit/include/eunit.hrl\").
 
--define(SLEEP(TIMEOUT), receive after TIMEOUT -> ok end).
-
 %%%%%%=============================================================================
 %%%%%% TESTS
 %%%%%%=============================================================================
 
+unhandled_call_test() ->
+    process_flag(trap_exit, true),
+    test_utils:start_registered(%s),
+    ?assertEqual({undefined, some_call}, gen_server:call(%s, some_call)),
+    receive
+        {'EXIT', _, unexpected_call} ->
+            ok
+    after 100 ->
+            throw({test_failed, server_exit_expected})
+    end.
+
+unhandled_cast_test() ->
+    process_flag(trap_exit, true),
+    test_utils:start_registered(%s),
+    ?assertEqual(ok, gen_server:cast(%s, some_cast)),
+    receive
+        {'EXIT', _, unexpected_cast} ->
+            ok
+    after 100 ->
+            throw({test_failed, server_exit_expected})
+    end.
+
+unhandled_info_test() ->
+    test_utils:start_registered(%s),
+    %s ! some_info,
+    test_utils:shutdown_registered(%s).
+
 code_change_test() ->
-    test_utils:assert_default_code_change(%s).
-
-handle_info_test() ->
-    test_utils:assert_default_handle_info(application_name_here, 
-                                          %s).
-handle_cast_test() ->
-    test_utils:assert_default_handle_cast(%s).
-
-handle_call_test() ->
-    test_utils:assert_default_handle_call(%s).
+    ?assertEqual({ok, state}, %s:code_change(oldvsn, state, extra)).
 
 terminate_test() ->
     ?assertMatch(ok, %s:terminate(reason, state)).
@@ -164,18 +190,4 @@ terminate_test() ->
 %%%%%% Internal Functions
 %%%%%%=============================================================================
 
-setup() ->
-    teardown(),
-    {ok, P} = %s:start_link(),
-    unlink(P),
-    P.
-
-teardown() ->
-    case whereis(%s) of
-        undefined -> 
-            ok;
-        Pid ->
-            exit(Pid, kill)
-    end,
-    ?SLEEP(50).
-" module module module module module module module module))
+" module module module module module module module module module module))

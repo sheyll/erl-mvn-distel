@@ -26,8 +26,8 @@
 %%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | | 
 %%%%%%
 %%%%%% @author Sven Heyll <sven.heyll@lindenbaum.eu>
-%%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
+%%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
 %%%%%% @copyright (C) 2011, Lindenbaum GmbH
 %%%%%%
@@ -67,16 +67,15 @@ init(_Config) ->
     RestartStrategy = one_for_all,
     MaxRestarts = 3,
     MaxTSeconds = 1800,
-
-    SupFlags = {RestartStrategy, MaxRestarts, MaxTSeconds},
-
-    {ok, {SupFlags, [{some_child, 
-                      {some_child, start_link, []},
-                      temporary, 500, worker, [some_child]}]}}.
+    SomeChild = {some_child, 
+                 {some_child, start_link, []},
+                 temporary, 500, worker, [some_child]},
+    {ok, {{RestartStrategy, MaxRestarts, MaxTSeconds}, [SomeChild]}}.
 
 %%%%%%=============================================================================
 %%%%%% Internal Functions
 %%%%%%=============================================================================
+
 " module))
 
 (defun supervisor-test-source-template(module)
@@ -88,8 +87,8 @@ init(_Config) ->
 %%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | | 
 %%%%%%
 %%%%%% @author Sven Heyll <sven.heyll@lindenbaum.eu>
-%%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
+%%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
 %%%%%% @copyright (C) 2011, Lindenbaum GmbH
 %%%%%%
@@ -98,13 +97,13 @@ init(_Config) ->
 
 -include_lib(\"eunit/include/eunit.hrl\").
 
-correct_config_and_children_test() ->
-    Actual = %s:init([]),
-    ?assertMatch({ok, 
-                  {{simple_one_for_one, 0, 1800},
-                   [{some_child, 
-                     {some_child, start_link, []},
-                     temporary, 500, worker, [some_child]}]}},
-                 Actual).
+lifecycle_test() ->
+    SomeChild = spawn(fun() -> receive ok -> ok end end),
+    M = em:new(),
+    em:strict(M, some_child, start_link, [], {return, {ok, SomeChild}}),
+    em:replay(M),
+    Pid = test_utils:start_unregistered(%s, [config]),
+    em:verify(M),
+    test_utils:shutdown_unregistered(Pid).
 
 " module module))

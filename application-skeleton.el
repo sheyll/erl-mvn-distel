@@ -26,13 +26,15 @@
 %%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | | 
 %%%%%%
 %%%%%% @author Sven Heyll <sven.heyll@lindenbaum.eu>
-%%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
+%%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
 %%%%%% @copyright (C) 2011, Lindenbaum GmbH
 %%%%%%
 %%%%%% @doc
+
 %%%%%% Documentation for this application.
+
 %%%%%% @end
 %%%%%%=============================================================================
 
@@ -58,7 +60,7 @@
 %%%% @private
 %%%%------------------------------------------------------------------------------
 start(_StartType, _StartArgs) ->
-    utils:start_link(%s_sup).
+    %s_sup:start_link().
 
 %%%%------------------------------------------------------------------------------
 %%%% @private
@@ -80,8 +82,8 @@ stop(_State) ->
 %%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | | 
 %%%%%%
 %%%%%% @author Sven Heyll <sven.heyll@lindenbaum.eu>
-%%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
+%%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
 %%%%%% @copyright (C) 2011, Lindenbaum GmbH
 %%%%%%
@@ -95,31 +97,11 @@ stop(_State) ->
 %%%%%% TESTS
 %%%%%%=============================================================================
 
-start_succeeds_test() ->
+start_test() ->
     M = em:new(),
-    em:strict(M, %s_sup, start_link, [],
-              {return, {ok, pid}}),
+    em:strict(M, %s_sup, start_link, [], {return, some_return}),
     em:replay(M),
-    ?assertMatch({ok, pid},
-                 %s:start(startType, startArgs)),
-    em:verify(M).
-
-start_error_test() ->
-    M = em:new(),
-    em:strict(M, %s_sup, start_link, [],
-                {return, {error, reason}}),
-    em:replay(M),
-    ?assertMatch({error, reason},
-                 %s:start(startType, startArgs)),
-    em:verify(M).
-
-start_unexpected_test() ->
-    M = em:new(),
-    em:strict(M, %s_sup, start_link, [],
-                {return, {other, reason}}),
-    em:replay(M),
-    ?assertMatch({error, {unexpected, {other, reason}}},
-                 %s:start(startType, startArgs)),
+    ?assertMatch(some_return, %s:start(startType, startArgs)),
     em:verify(M).
 
 stop_test() ->
@@ -128,4 +110,4 @@ stop_test() ->
 %%%%%%=============================================================================
 %%%%%% Internal Functions
 %%%%%%=============================================================================
-" module module module module module module module module))
+" module module module module))
