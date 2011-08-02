@@ -122,10 +122,10 @@ code_change(_OldVsn, State, _Extra) ->
 -spec report(info | error, [atom() | {atom(), term()}]) -> ok.
 report(info, Report) ->
     DefaultReport = [{module, ?MODULE}, {server, self()}],
-    error_logger:info_report(application_name_here, DefaultReport ++ Report);
+    error_logger:info_report(?APP, DefaultReport ++ Report);
 report(error, Report) ->
     DefaultReport = [{module, ?MODULE}, {server, self()}],
-    error_logger:error_report(application_name_here, DefaultReport ++ Report).
+    error_logger:error_report(?APP, DefaultReport ++ Report).
 
 " module))
 
@@ -155,7 +155,8 @@ report(error, Report) ->
 
 unhandled_call_test() ->
     process_flag(trap_exit, true),
-    test_utils:start_registered(%s),
+    {ok, Pid} = test_utils:start_registered(%s),
+    Pid ! some_info,
     ?assertEqual({undefined, some_call}, gen_server:call(%s, some_call)),
     receive
         {'EXIT', _, unexpected_call} ->
@@ -176,9 +177,7 @@ unhandled_cast_test() ->
     end.
 
 unhandled_info_test() ->
-    test_utils:start_registered(%s),
-    %s ! some_info,
-    test_utils:shutdown_registered(%s).
+    ?assertEqual({noreply, state}, %s:handle_info(info, state)).
 
 code_change_test() ->
     ?assertEqual({ok, state}, %s:code_change(oldvsn, state, extra)).
@@ -186,8 +185,33 @@ code_change_test() ->
 terminate_test() ->
     ?assertMatch(ok, %s:terminate(reason, state)).
 
+report_test() ->
+    Self = self(),
+
+    M = em:new(),
+    em:strict(M, error_logger, info_report,
+              [em:any(), em:any()],
+              {function, fun([?APP, [{module, %s},
+                                     {server, Pid},
+                                     info]]) ->
+                                 ?assertEqual(Self, Pid),
+                                 ok
+                         end}),
+    em:strict(M, error_logger, error_report,
+              [em:any(), em:any()],
+              {function, fun([?APP, [{module, %s},
+                                     {server, Pid},
+                                     error]]) ->
+                                 ?assertEqual(Self, Pid),
+                                 ok
+                         end}),
+    em:replay(M),
+    %s:report(info, [info]),
+    %s:report(error, [error]),
+    em:verify(M).
+
 %%%%%%=============================================================================
 %%%%%% Internal Functions
 %%%%%%=============================================================================
 
-" module module module module module module module module module module))
+" module module module module module module module module module module module module))
