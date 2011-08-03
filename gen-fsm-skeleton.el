@@ -5,7 +5,7 @@
   (interactive "sModule Name: \nDSource Directory: \nDTest Source Directory: ")
   (let ((source-file (concat source-dir module ".erl"))
         (test-source-file (concat test-source-dir module "_test.erl")))
-    (message (format "Generating %s." source-file))  
+    (message (format "Generating %s." source-file))
     (message (format "Generating %s." test-source-file))
     (find-file-literally source-file)
     (insert (gen-fsm-source-template module))
@@ -19,11 +19,11 @@
 
 (defun gen-fsm-source-template(module)
   "Generate a gen-fsm template for a module."
-  (format 
+  (format
    "%%%%%%=============================================================================
-%%%%%%                                        
+%%%%%%
 %%%%%%               |  o __   _|  _  __  |_   _       _ _   (TM)
-%%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | | 
+%%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | |
 %%%%%%
 %%%%%% @author Sven Heyll <sven.heyll@lindenbaum.eu>
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
@@ -49,10 +49,10 @@
          handle_sync_event/4,
          handle_info/3,
          format_status/2,
-         terminate/3, 
+         terminate/3,
          code_change/4]).
 
--record(state, 
+-record(state,
         {}).
 
 %%%%%%=============================================================================
@@ -130,11 +130,11 @@ report(error, Report) ->
 
 (defun gen-fsm-test-source-template(module)
   "Generate a gen-fsm test template for a module."
-  (format 
+  (format
    "%%%%%%=============================================================================
-%%%%%%                                        
+%%%%%%
 %%%%%%               |  o __   _|  _  __  |_   _       _ _   (TM)
-%%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | | 
+%%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | |
 %%%%%%
 %%%%%% @author Sven Heyll <sven.heyll@lindenbaum.eu>
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
@@ -142,7 +142,7 @@ report(error, Report) ->
 %%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
 %%%%%% @copyright (C) 2011, Lindenbaum GmbH
 %%%%%%
-%%%%%%-----------------------------------------------------------------------------
+%%%%%%=============================================================================
 
 -module(%s_test).
 

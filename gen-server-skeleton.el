@@ -5,7 +5,7 @@
   (interactive "sModule Name: \nDSource Directory: \nDTest Source Directory: ")
   (let ((source-file (concat source-dir module ".erl"))
         (test-source-file (concat test-source-dir module "_test.erl")))
-    (message (format "Generating %s." source-file))  
+    (message (format "Generating %s." source-file))
     (message (format "Generating %s." test-source-file))
     (find-file-literally source-file)
     (insert (gen-server-source-template module))
@@ -19,11 +19,11 @@
 
 (defun gen-server-source-template(module)
   "Generate a gen-server template for a module."
-  (format 
+  (format
    "%%%%%%=============================================================================
-%%%%%%                                        
+%%%%%%
 %%%%%%               |  o __   _|  _  __  |_   _       _ _   (TM)
-%%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | | 
+%%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | |
 %%%%%%
 %%%%%% @author Sven Heyll <sven.heyll@lindenbaum.eu>
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
@@ -44,17 +44,17 @@
 -export([start_link/0]).
 
 %%%% gen_server callbacks
--export([init/1, 
-         handle_call/3, 
-         handle_cast/2, 
+-export([init/1,
+         handle_call/3,
+         handle_cast/2,
          handle_info/2,
-         terminate/2, 
+         terminate/2,
          code_change/3]).
 
--define(SERVER, ?MODULE). 
+-define(SERVER, ?MODULE).
 -registered([?MODULE]).
 
--record(state, 
+-record(state,
         {}).
 
 %%%%%%=============================================================================
@@ -131,11 +131,11 @@ report(error, Report) ->
 
 (defun gen-server-test-source-template(module)
   "Generate a gen-server test template for a module."
-  (format 
+  (format
    "%%%%%%=============================================================================
-%%%%%%                                        
+%%%%%%
 %%%%%%               |  o __   _|  _  __  |_   _       _ _   (TM)
-%%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | | 
+%%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | |
 %%%%%%
 %%%%%% @author Sven Heyll <sven.heyll@lindenbaum.eu>
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
@@ -143,7 +143,7 @@ report(error, Report) ->
 %%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
 %%%%%% @copyright (C) 2011, Lindenbaum GmbH
 %%%%%%
-%%%%%%-----------------------------------------------------------------------------
+%%%%%%=============================================================================
 
 -module(%s_test).
 

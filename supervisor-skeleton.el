@@ -2,10 +2,10 @@
 
 (defun supervisor-skeleton(module source-dir test-source-dir)
   "Generates a source file and a test source file for a supervisor implementation."
-  (interactive "sModule Name: \nDSource Directory: \nDTest Source Directory: ")  
+  (interactive "sModule Name: \nDSource Directory: \nDTest Source Directory: ")
   (let ((source-file (concat source-dir module ".erl"))
         (test-source-file (concat test-source-dir module "_test.erl")))
-    (message (format "Generating %s." source-file))  
+    (message (format "Generating %s." source-file))
     (message (format "Generating %s." test-source-file))
     (find-file-literally source-file)
     (insert (supervisor-source-template module))
@@ -19,11 +19,11 @@
 
 (defun supervisor-source-template(module)
   "Generate a supervisor template for a module."
-  (format 
+  (format
    "%%%%%%=============================================================================
-%%%%%%                                        
+%%%%%%
 %%%%%%               |  o __   _|  _  __  |_   _       _ _   (TM)
-%%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | | 
+%%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | |
 %%%%%%
 %%%%%% @author Sven Heyll <sven.heyll@lindenbaum.eu>
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
@@ -67,7 +67,7 @@ init(_Config) ->
     RestartStrategy = one_for_all,
     MaxRestarts = 3,
     MaxTSeconds = 1800,
-    SomeChild = {some_child, 
+    SomeChild = {some_child,
                  {some_child, start_link, []},
                  temporary, 500, worker, [some_child]},
     {ok, {{RestartStrategy, MaxRestarts, MaxTSeconds}, [SomeChild]}}.
@@ -80,11 +80,11 @@ init(_Config) ->
 
 (defun supervisor-test-source-template(module)
   "Generate a supervisor test template for a module."
-  (format 
+  (format
    "%%%%%%=============================================================================
-%%%%%%                                        
+%%%%%%
 %%%%%%               |  o __   _|  _  __  |_   _       _ _   (TM)
-%%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | | 
+%%%%%%               |_ | | | (_| (/_ | | |_) (_| |_| | | |
 %%%%%%
 %%%%%% @author Sven Heyll <sven.heyll@lindenbaum.eu>
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
