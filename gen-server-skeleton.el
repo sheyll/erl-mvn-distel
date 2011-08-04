@@ -186,29 +186,18 @@ terminate_test() ->
     ?assertMatch(ok, %s:terminate(reason, state)).
 
 report_test() ->
-    Self = self(),
-
-    M = em:new(),
-    em:strict(M, error_logger, info_report,
-              [em:any(), em:any()],
-              {function, fun([?APP, [{module, %s},
-                                     {server, Pid},
-                                     info]]) ->
-                                 ?assertEqual(Self, Pid),
-                                 ok
-                         end}),
-    em:strict(M, error_logger, error_report,
-              [em:any(), em:any()],
-              {function, fun([?APP, [{module, %s},
-                                     {server, Pid},
-                                     error]]) ->
-                                 ?assertEqual(Self, Pid),
-                                 ok
-                         end}),
-    em:replay(M),
+    logmock:start(self(),
+                  [logmock:info_report(?APP,
+                                       [{module, %s},
+                                        {server, self()},
+                                        info]),
+                   logmock:error_report(?APP,
+                                        [{module, %s},
+                                         {server, self()},
+                                         error])]),
     %s:report(info, [info]),
     %s:report(error, [error]),
-    em:verify(M).
+    logmock:verify().
 
 %%%%%%=============================================================================
 %%%%%% Internal Functions
