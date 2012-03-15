@@ -18,7 +18,7 @@
 (defvar erl-mvn-xterm-executable "gnome-terminal"
   "The terminal emulator to use for erlang remote shells.")
 
-(defvar erl-mvn-hostname 
+(defvar erl-mvn-hostname
   (car (process-lines "hostname" "-f"))
   "The hostname of the erlang nodes for maven and distel.")
 
@@ -36,8 +36,8 @@
   project")
 
 (defvar erl-mvn-erl-mvn-erlang-sources
-  (file-truename 
-   (file-name-directory 
+  (file-truename
+   (file-name-directory
             (or (locate-library "distel") load-file-name)))
    "Path to the erlang sources shipped with erl-mvn.")
 
@@ -72,71 +72,71 @@
    (file-name-directory (or (locate-library "erl-mvn") load-file-name)))
    "Path to the erlang sources shipped with erl-mvn..")
 
-(defvar erl-mvn-mode-map 
+(defvar erl-mvn-mode-map
   (let ((the-map
-         '(keymap 
-           (menu-bar . 
-                     (keymap 
-                      (erl-mvn "Maven" . 
-                               (keymap                          
-                                
+         '(keymap
+           (menu-bar .
+                     (keymap
+                      (erl-mvn "Maven" .
+                               (keymap
+
                                 (sep0 . (menu-item "Maven:"))
                                 (sep0a . (menu-item "--"))
-                                (refresh-project-skel . 
-                                                 (menu-item "Refresh Project" 
+                                (refresh-project-skel .
+                                                 (menu-item "Refresh Project"
                                                             erl-mvn-refresh-project :keys "C-c C-v r"))
                                 (sep0b . (menu-item "--"))
 
 
                                 (sep1 . (menu-item "Lindenbaum Skeletons:"))
                                 (sep1a . (menu-item "--"))
-                                (lbm_dynamic_resource_manager-skel . 
-                                                                   (menu-item "Custodian Provider" 
+                                (lbm_dynamic_resource_manager-skel .
+                                                                   (menu-item "Custodian Provider"
                                                                               lbm_dynamic_resource_manager-skeleton :keys "C-c C-v p"))
-                                (lbm_resource_guard-skel . 
-                                                         (menu-item "Custodian Resource" 
+                                (lbm_resource_guard-skel .
+                                                         (menu-item "Custodian Resource"
                                                                     lbm_resource_guard-skeleton :keys "C-c C-v o"))
                                 (sep1b . (menu-item "--"))
 
 
                                 (sep1c . (menu-item "OTP Skeletons:"))
                                 (sep1d . (menu-item "--"))
-                                (application-skel . 
-                                                 (menu-item "Application" 
+                                (application-skel .
+                                                 (menu-item "Application"
                                                             application-skeleton :keys "C-c C-v a"))
-                                (supervisor-skel . 
-                                                 (menu-item "Supervisor" 
+                                (supervisor-skel .
+                                                 (menu-item "Supervisor"
                                                             supervisor-skeleton :keys "C-c C-v u"))
-                                (gen-server-skeleton . 
-                                                     (menu-item "Gen-Server" 
+                                (gen-server-skeleton .
+                                                     (menu-item "Gen-Server"
                                                                 gen-server-skeleton :keys "C-c C-v g"))
-                                (gen-fsm-skeleton . 
-                                                     (menu-item "Gen-Fsm" 
+                                (gen-fsm-skeleton .
+                                                     (menu-item "Gen-Fsm"
                                                                 gen-fsm-skeleton :keys "C-c C-v f"))
                                 (sep1e . (menu-item "--"))
 
-                                
+
                                 (sep2 . (menu-item "Current Buffer:"))
                                 (sep2a . (menu-item "--"))
-                                (toggle-source-test . 
-                                                    (menu-item "Switch Between Source <-> Test" 
+                                (toggle-source-test .
+                                                    (menu-item "Switch Between Source <-> Test"
                                                                erl-mvn-toggle-source-test :keys "C-c C-v s or F5"))
-                                (test-function . 
-                                               (menu-item "Eunit-test Function" 
+                                (test-function .
+                                               (menu-item "Eunit-test Function"
                                                           erl-mvn-eunit-test-function :keys "C-c C-v t or F6"))
-                                (trace-test-function . 
-                                               (menu-item "Eunit-test Function(Traced)" 
+                                (trace-test-function .
+                                               (menu-item "Eunit-test Function(Traced)"
                                                           erl-mvn-eunit-test-function-trace :keys "C-c C-v T or S-F6"))
-                                (test-module . 
-                                             (menu-item "Eunit-test Module" 
+                                (test-module .
+                                             (menu-item "Eunit-test Module"
                                                         erl-mvn-eunit-test-module :keys "C-c C-v T or F7"))
                                 (sep2e . (menu-item "--"))
-                                                                    
-                            
+
+
                                 (sep3 . (menu-item "Erlang Node:"))
                                 (sep3a . (menu-item "--"))
-                                (run-erlang-console . 
-                                                    (menu-item "Erlang Node Remoteshell" 
+                                (run-erlang-console .
+                                                    (menu-item "Erlang Node Remoteshell"
                                                                erl-mvn-erlang-node-remote-shell))
                                 )))))))
     (define-key the-map (kbd "C-c C-v r") 'refresh-project)
@@ -159,7 +159,7 @@
     "Erl Mvn minor mode keymap.")
 
 ;; ----------------------------------------------------------------------
-;; functions to tune emacs standard features to better work for erlang 
+;; functions to tune emacs standard features to better work for erlang
 ;; sources.
 ;; ----------------------------------------------------------------------
 
@@ -195,47 +195,47 @@ Null prefix argument turns off the mode.
   (interactive)
   (let ((node-name (erl-mvn-make-node-name erl-mvn-artifact-id))
         (tmp-node-name (format "erl-mvn-remsh-%s@%s" (random) erl-mvn-hostname)))
-    (start-process tmp-node-name (format "*%s*" tmp-node-name) erl-mvn-xterm-executable "-e" 
+    (start-process tmp-node-name (format "*%s*" tmp-node-name) erl-mvn-xterm-executable "-e"
                    (format "%s -remsh %s -name %s" erl-mvn-erlang-executable node-name tmp-node-name))))
 
 (defun erl-mvn-get-source-and-test-source()
   "Private function. Returns the source and test source filename matching the current buffer."
   (erl-mvn-with-directories
    (lambda (source-dir test-source-dir fn-dir)
-     (cond 
+     (cond
       ((string= fn-dir test-source-dir)
        (let ((file-name (file-name-nondirectory buffer-file-name)))
          (string-match "^\\(.+\\)_test.erl$" file-name)
-         (let ((source-file-name 
+         (let ((source-file-name
                 (concat source-dir (replace-match "\\1.erl" 'nil 'nil file-name))))
            (list source-file-name buffer-file-name))))
       ((string= fn-dir source-dir)
        (let ((file-name (file-name-nondirectory buffer-file-name)))
          (string-match "^\\(.+\\).erl$" file-name)
-         (let ((test-source-file-name 
+         (let ((test-source-file-name
                 (concat test-source-dir (replace-match "\\1_test.erl" 'nil 'nil file-name))))
            (list buffer-file-name test-source-file-name))))))))
 
 (defun erl-mvn-toggle-source-test ()
   "If the buffer is a relevant erlang buffer open the appropriate test source, or
-if the buffer-file is in the test sources folder, visit the source. This function 
+if the buffer-file is in the test sources folder, visit the source. This function
 returns either the source file name or the test source file name."
   (interactive)
-  (erl-mvn-with-directories 
+  (erl-mvn-with-directories
    (lambda (source-dir test-source-dir fn-dir)
      (let ((prev-file-name buffer-file-name))
-       (cond 
+       (cond
         ((string= fn-dir test-source-dir)
          (let ((file-name (file-name-nondirectory buffer-file-name)))
            (string-match "^\\(.+\\)_test.erl$" file-name)
-           (let ((target-file-name 
+           (let ((target-file-name
                   (concat source-dir (replace-match "\\1.erl" 'nil 'nil file-name))))
              (find-file target-file-name)
              prev-file-name)))
         ((string= fn-dir source-dir)
          (let ((file-name (file-name-nondirectory buffer-file-name)))
            (string-match "^\\(.+\\).erl$" file-name)
-           (let ((target-file-name 
+           (let ((target-file-name
                   (concat test-source-dir (replace-match "\\1_test.erl" 'nil 'nil file-name))))
              (find-file target-file-name)
              prev-file-name))))))))
@@ -244,9 +244,9 @@ returns either the source file name or the test source file name."
 
 (defun erl-mvn-compile-project(pom-file)
   "Asks for a pom to open. And compile the project using maven, starting an erlang node as a side effect."
-  (interactive 
-     (let ((pom-file 
-	    (read-file-name "Open POM: " 
+  (interactive
+     (let ((pom-file
+	    (read-file-name "Open POM: "
 			    (file-name-directory buffer-file-name)
 			    (erl-mvn-find-pom (file-name-directory buffer-file-name))
 			    'confirm)))
@@ -261,9 +261,9 @@ returns either the source file name or the test source file name."
 
 (defun erl-mvn-start-erlang-and-compile-project(pom-file)
   "An erlang node will be started, and maven compile will be executed
-with the erlang node as target for module upload. 
+with the erlang node as target for module upload.
 
-Distel modules are deployed to the erlang node, and all distel function 
+Distel modules are deployed to the erlang node, and all distel function
 should work properly.
 
 Automatic recompilation on saving erlang sources in that project is activated."
@@ -295,16 +295,16 @@ Automatic recompilation on saving erlang sources in that project is activated."
   (make-variable-buffer-local 'erl-mvn-pom-file)
 
   ; hooks
-  (add-hook 
+  (add-hook
    'erlang-mode-hook
    (lambda ()
      (let ((pom (erl-mvn-find-pom (file-name-directory buffer-file-name))))
-       (cond (pom              
+       (cond (pom
               (if (and (not (erl-mvn-node-running-for-pom pom))
                        erl-mvn-auto-start-maven-node)
                   (erl-mvn-compile-current-project))
 	      (erl-mvn-setup-buffer (current-buffer)))))))
-  (add-hook 'after-save-hook 
+  (add-hook 'after-save-hook
 	    (function erl-mvn-erl-buffer-saved))
   (add-hook 'pre-command-hook (function erl-mvn-update-distel-node))
   (add-to-list 'after-change-functions (function erl-mvn-mark-buffer-dirty))
@@ -313,7 +313,7 @@ Automatic recompilation on saving erlang sources in that project is activated."
 (defun erl-mvn-refresh-buffers()
   "Private function. Clears the irrelevant buffer cache and sets up header line and minor mode for all relevant erlang buffers."
   (setq erl-mvn-irrelevant-buffers 'nil)
-  (mapcar 
+  (mapcar
    'erl-mvn-setup-buffer
    (buffer-list)))
 
@@ -326,24 +326,24 @@ Automatic recompilation on saving erlang sources in that project is activated."
           (cond ((and pom
                       (string-match "^.+\.erl$" buffer-file-name))
                  (let* ((ai (erl-mvn-pom-lookup pom 'artifactId))
-                        (output-dir (file-truename 
-                                     (concat (file-name-directory pom) 
+                        (output-dir (file-truename
+                                     (concat (file-name-directory pom)
                                              "target/emacs-compiled/")))
-                        (source-file (file-truename 
-                                      (concat output-dir 
+                        (source-file (file-truename
+                                      (concat output-dir
                                               (file-name-nondirectory buffer-file-name)))))
                    (setq erl-mvn-artifact-id ai)
                    (setq erl-mvn-pom-file pom)
                    (setq erl-mvn-output-dir output-dir)
                    (setq erl-mvn-tmp-source-file source-file)
-                   (cond  ((erl-mvn-with-directories 
+                   (cond  ((erl-mvn-with-directories
                             (lambda (src-dir test-src-dir fn-dir)
                               (and (member ai erl-mvn-open-projects)
                                    (or (string= src-dir fn-dir)
                                        (string= test-src-dir fn-dir)))))
                            (erl-mvn-mode 1)
-                           (setq header-line-format 
-                                 (concat 
+                           (setq header-line-format
+                                 (concat
                                   (erl-mvn-pom-lookup  pom 'groupId)
                                   "/"
                                   (propertize erl-mvn-artifact-id 'face 'bold)
@@ -353,7 +353,7 @@ Automatic recompilation on saving erlang sources in that project is activated."
                            (force-mode-line-update))))))))))
 
 (defun erl-mvn-update-distel-node()
-  "Updates distel variables to contain the erlang node of the project the current file belongs to." 
+  "Updates distel variables to contain the erlang node of the project the current file belongs to."
   (cond ((and (not (minibufferp))
 	      (not (equal erl-mvn-current-buffer (current-buffer))))
 	 (setq erl-mvn-current-buffer (current-buffer))
@@ -409,8 +409,8 @@ code_paths."
 	  (let ((mvn-result (erl-mvn-run-maven pom-file))
                 (node-name (erl-mvn-make-node-name artifact-id))
                 (node (make-symbol node-name)))
-	    (mapcar 
-	     (lambda(l) 
+	    (mapcar
+	     (lambda(l)
 	       (cond ((string-match " include_dir: \\(.+\\)$" l)
 		      (add-to-list 'include-dirs (file-truename (match-string 1 l))))
 		     ((string-match " src_dir: \\(.+\\)$" l)
@@ -425,7 +425,7 @@ code_paths."
 	    (if build-failed
 		(message "Building and adding maven project %s failed!" artifact-id)
 	      (progn
-		(add-to-list 'erl-mvn-include-paths  `(,artifact-id ,include-dirs))   
+		(add-to-list 'erl-mvn-include-paths  `(,artifact-id ,include-dirs))
 		(add-to-list 'erl-mvn-code-paths `(,artifact-id ,code-paths))
 		(add-to-list 'erl-mvn-source-paths `(,artifact-id ,src-dir))
 		(add-to-list 'erl-mvn-test-source-paths `(,artifact-id ,test-src-dir))
@@ -441,20 +441,20 @@ buffer, so the user is able to follow the output."
 	 (node-name (erl-mvn-make-node-name artifact-id))
 	 (mvn-output-buffer (erl-mvn-make-mvn-output-buffer-name artifact-id)))
     (save-excursion
-      (with-current-buffer 
+      (with-current-buffer
 	  (get-buffer-create mvn-output-buffer)
         (setq buffer-read-only nil)
-        (save-selected-window          
+        (save-selected-window
           (select-window (or (get-buffer-window (current-buffer))
-                             (display-buffer (current-buffer))))          
-          (goto-char (point-max))          
+                             (display-buffer (current-buffer))))
+          (goto-char (point-max))
           (let ((start (point)))
             (call-process erl-mvn-maven-executable
                           nil ; infile
                           mvn-output-buffer
                           't   ; redisplay
                           "-f" pom
-                          "-U" ; update dependencies                          
+                          "-U" ; update dependencies
                           (concat "-Dremote=" node-name)
                           "-DwithDependencies=true"
                           "clean"
@@ -466,9 +466,9 @@ buffer, so the user is able to follow the output."
 (defun erl-mvn-is-maven-erlang-project(pom-file)
   "Private function. Returns t if the pom-file exists and defines
 an erlang project."
-  (if (file-exists-p pom-file) 
+  (if (file-exists-p pom-file)
        (let ((packaging (erl-mvn-pom-lookup pom-file 'packaging)))
-         (some (lambda (allowed) 
+         (some (lambda (allowed)
                  (string= packaging allowed))
                erl-mvn-erlang-mvn-packaging-types))
     'nil))
@@ -482,7 +482,7 @@ parent directories of fn, returns nil if the pom was not found"
       (setq dir (file-truename (concat dir "/.."))))
     (let ((pom (concat dir "/pom.xml")))
       (if (not (file-exists-p pom))
-          (progn 
+          (progn
             (message "No pom.xml found")
             'nil)
         pom))))
@@ -499,11 +499,11 @@ into a list where each element contains one line. The newline
 character will be discarded"
   (let ((current-line '())
         (lines '()))
-    (mapcar 
-     (lambda (c) 
+    (mapcar
+     (lambda (c)
        (if (eq c ?\n)
            (progn (setq lines (cons (eval `(string ,@(reverse current-line))) lines))
-                  (setq current-line '()))  
+                  (setq current-line '()))
          (setq current-line (cons c current-line))))
      str)
     ; append the rest
@@ -519,10 +519,10 @@ character will be discarded"
   "Private function. Starts an erlang node for the node-name that
 can be used by maven for tests and debug code"
   (if (erl-mvn-node-running node-name)
-      (progn 
+      (progn
         (message (concat "Node already running: " node-name))
         (kill-buffer (erl-mvn-make-buffer-name node-name))))
-  (message (concat "Starting node name: " node-name))            
+  (message (concat "Starting node name: " node-name))
   (start-process (erl-mvn-make-buffer-name node-name)
                  (erl-mvn-make-buffer-name node-name)
                  erl-mvn-erlang-executable
@@ -533,8 +533,8 @@ can be used by maven for tests and debug code"
 
 (defun erl-mvn-node-running-for-pom(pom-file)
   "Private function. Returns 't if an erlang node is running, to wich code of the projected identified by the pom file is uploaded."
-  (erl-mvn-node-running 
-   (erl-mvn-make-node-name 
+  (erl-mvn-node-running
+   (erl-mvn-make-node-name
     (erl-mvn-pom-lookup pom-file 'artifactId))))
 
 (defun erl-mvn-node-running(node-name)
@@ -543,15 +543,15 @@ already started for node-name, by checking wether a buffer of
 that name exits"
   (not (eq 'nil (member (erl-mvn-make-buffer-name node-name) (mapcar (function buffer-name) (buffer-list))))))
 
-(defun erl-mvn-prepare-erlang-node (node-name) 
+(defun erl-mvn-prepare-erlang-node (node-name)
   "Private function. Connectes distel to a node identified by an
 erlang long node name string, and uploads all erlang modules necessary for erl-mvn, currently only the eunit execution glue-code."
   (let ((n (make-symbol node-name)))
-    (setq erl-nodename-cache n)    
+    (setq erl-nodename-cache n)
     (erl-ping n)
     (sleep-for 1)
     (erl-mvn-upload-erlang-modules n)))
-             
+
 (defun erl-mvn-make-node-name(str)
   "Private function. Creates a long erlang node name from a string."
   (concat "erl-mvn-test-node-" str "@" erl-mvn-hostname))
@@ -563,20 +563,20 @@ erlang node for each maven project, and distel always works with
 just one node."
   (if (and (not (minibufferp))
 	   (erl-mvn-is-relevant-erl-buffer))
-      (let ((node 
+      (let ((node
 	     (make-symbol
-	      (erl-mvn-make-node-name 
-	       (erl-mvn-pom-lookup 
-		(erl-mvn-find-pom buffer-file-name) 
+	      (erl-mvn-make-node-name
+	       (erl-mvn-pom-lookup
+		(erl-mvn-find-pom buffer-file-name)
 		'artifactId)))))
 	(setq erl-nodename-cache node))))
 
 (defun erl-mvn-with-directories(k)
   "Private function. Run k with three parameters: source path, test source path and directory of current buffer."
     (let*
-      ((src-dir 
+      ((src-dir
 	(cadr (assoc erl-mvn-artifact-id erl-mvn-source-paths)))
-       (test-src-dir 
+       (test-src-dir
 	(cadr (assoc erl-mvn-artifact-id erl-mvn-test-source-paths)))
        (fn-dir (file-name-directory buffer-file-name)))
       (apply k (list src-dir test-src-dir fn-dir))))
@@ -605,7 +605,7 @@ Ignores modules not in the test source directory."
 Ignores modules not in the test source directory."
   (interactive)
   (erl-mvn-eunit-run-at-line (lambda() 0)))
-  
+
 (defun erl-mvn-eunit-test-function-trace()
   "Private function. Runs either the eunit test for a complete module or the test function under the cursor.
 Ignores modules not in the test source directory."
@@ -613,7 +613,7 @@ Ignores modules not in the test source directory."
   (erl-mvn-eunit-run-at-line-trace (lambda() (line-number-at-pos))))
 
 (defun erl-mvn-eunit-run-at-line-trace(line-fun)
-  "Private function. This is similar to erl-mvn-eunit-run-at-line, except that trace output is 
+  "Private function. This is similar to erl-mvn-eunit-run-at-line, except that trace output is
  captured and shown in a seperate buffer."
   (erl-mvn-prepare-compilation-current-buffer)
   (erl-mvn-with-directories
@@ -622,7 +622,7 @@ Ignores modules not in the test source directory."
          (erl-mvn-toggle-source-test))
      (if (erl-mvn-is-relevant-erl-buffer)
          (let* ((node-name (erl-mvn-make-node-name erl-mvn-artifact-id))
-                (erl-popup-on-output-old erl-popup-on-output)             
+                (erl-popup-on-output-old erl-popup-on-output)
                 (node (make-symbol node-name))
                 (line (apply line-fun '()))
                 (source-under-test (car (erl-mvn-get-source-and-test-source)))
@@ -632,18 +632,18 @@ Ignores modules not in the test source directory."
            (remove-overlays 'nil 'nil 'eunit-overlay 't)
            (setq erl-eunit-source-buffer (current-buffer))
            (erl-spawn
-             (erl-send-rpc node 'erl_mvn_test_trace 'trace_test_file_line args)             
+             (erl-send-rpc node 'erl_mvn_test_trace 'trace_test_file_line args)
              (erl-receive (erl-popup-on-output-old erl-eunit-source-buffer)
                  ((['rex ['trace_test_result trace-result test-result]]
-                   (erl-mvn-show-eunit-results test-result erl-eunit-source-buffer)              
+                   (erl-mvn-show-eunit-results test-result erl-eunit-source-buffer)
                    (save-excursion
-                     (with-current-buffer (get-buffer-create "*erl-mvn-trace-output*")	  
-                       (save-selected-window        
+                     (with-current-buffer (get-buffer-create "*erl-mvn-trace-output*")
+                       (save-selected-window
                          (select-window (or (get-buffer-window (current-buffer))
                                             (display-buffer (current-buffer)))))
                        (let ((old-kill-ring (copy-list kill-ring)))
                          (kill-region (point-min) (point-max))
-                         (mapcar 
+                         (mapcar
                           (lambda (e)
                             (mcase e
 
@@ -653,14 +653,14 @@ Ignores modules not in the test source directory."
                               ([pid line]
                                (erl-mvn-insert-with-color (erl-mvn-get-color-for-string pid) "black" line))))
                           trace-result)
-                         (setq kill-ring old-kill-ring))))                   
+                         (setq kill-ring old-kill-ring))))
                    (setq erl-popup-on-output erl-popup-on-output-old))))))))))
 
 (defun erl-mvn-eunit-run-at-line(line-fun)
-  "Private function. Runs a single test function near the point, or 
-of line is 0 the complete module. The results will be displayed in a 
-buffer and through graphical annotations. The argument must be a function 
-that returns the line to consider. It will be called after the switch to 
+  "Private function. Runs a single test function near the point, or
+of line is 0 the complete module. The results will be displayed in a
+buffer and through graphical annotations. The argument must be a function
+that returns the line to consider. It will be called after the switch to
 the buffer containing the test."
   (erl-mvn-prepare-compilation-current-buffer)
   (erl-mvn-with-directories
@@ -669,7 +669,7 @@ the buffer containing the test."
          (erl-mvn-toggle-source-test))
      (if (erl-mvn-is-relevant-erl-buffer)
          (let* ((node-name (erl-mvn-make-node-name erl-mvn-artifact-id))
-                (erl-popup-on-output-old erl-popup-on-output)             
+                (erl-popup-on-output-old erl-popup-on-output)
                 (node (make-symbol node-name))
                 (line (apply line-fun '()))
                 (args (list erl-mvn-tmp-source-file line)))
@@ -677,10 +677,10 @@ the buffer containing the test."
            (remove-overlays 'nil 'nil 'eunit-overlay 't)
            (setq erl-eunit-source-buffer (current-buffer))
            (erl-spawn
-             (erl-send-rpc node 'erl_mvn_eunit 'run_test_file_line args)             
+             (erl-send-rpc node 'erl_mvn_eunit 'run_test_file_line args)
              (erl-receive (erl-popup-on-output-old erl-eunit-source-buffer)
                  ((['rex result]
-                   (erl-mvn-show-eunit-results result erl-eunit-source-buffer)              
+                   (erl-mvn-show-eunit-results result erl-eunit-source-buffer)
                    (setq erl-popup-on-output erl-popup-on-output-old))))))))))
 
 (defun erl-mvn-prepare-compilation-current-buffer()
@@ -697,7 +697,7 @@ node uploading it as a side effect, if it belongs to a project
 currently managed. If only-check is non-nil, no code will
 actually be loaded and is checked only for errors and warnings"
   (interactive "Sload-module: ")
-    (let* 
+    (let*
         ((old-kill-ring (copy-list kill-ring))
          (fn (file-truename (buffer-file-name)))
          (erl-source-buffer (current-buffer))
@@ -708,7 +708,7 @@ actually be loaded and is checked only for errors and warnings"
                          fn
                          erl-mvn-tmp-source-file)
                      (list (erl-mvn-get-erlang-compile-options
-                            erl-mvn-artifact-id 
+                            erl-mvn-artifact-id
                             erl-mvn-output-dir)))))
       (setq erl-popup-on-output nil)
       (erl-mvn-prepare-compilation-current-buffer)
@@ -717,31 +717,31 @@ actually be loaded and is checked only for errors and warnings"
         (erl-send-rpc node 'compile 'file args)
         (erl-receive (erl-popup-on-output-old erl-mvn-output-dir erl-source-buffer node load-module fn old-kill-ring)
             ((['rex result]
-              (mcase result              
-                
+              (mcase result
+
                 (['ok module warnings]
                  (erl-mvn-show-compilation-results '() warnings erl-source-buffer)
                  (message "Successfully compiled module: %s." module)
                  (cond (load-module
-                        (erpc node 'erl_mvn_source_utils 'load_module 
+                        (erpc node 'erl_mvn_source_utils 'load_module
                               (list module (format "%s/%s" erl-mvn-output-dir module)))
                         (message "Successfully loaded module %s into node %s." module node)))
                  (setq kill-ring old-kill-ring)
                  (setq erl-popup-on-output erl-popup-on-output-old))
-                
-                (['error errors warnings] 
-                 (message "Compilation failed!")            
+
+                (['error errors warnings]
+                 (message "Compilation failed!")
                  (erl-mvn-show-compilation-results errors warnings erl-source-buffer)
                  (setq kill-ring old-kill-ring))
-                
+
                 (unexpected (message "Unexpected message %s" unexpected)))))))))
 
 (defun erl-mvn-get-erlang-compile-options (artifact-id output-dir)
   "Private function. Returns a list of compiler arguments for
 compiling a source file of a project identified by a maven
 project artifact-id."
-  (append `(debug_info return verbose export_all ,(tuple 'outdir output-dir))
-          (mapcar (lambda(dir) (tuple 'i dir)) 
+  (append `(debug_info return verbose export_all ,(tuple 'outdir output-dir) ,(tuple 'd 'TEST))
+          (mapcar (lambda(dir) (tuple 'i dir))
                   (reverse (cadr (assoc artifact-id erl-mvn-include-paths))))))
 
 (defun erl-mvn-show-compilation-results(errors warnings mark-errors-buffer)
@@ -749,10 +749,10 @@ project artifact-id."
 compilation errorsa and warnings if erl-mvn-popup-compiler-output
 is not nil."
   (save-excursion
-    (with-current-buffer (get-buffer-create "*erl-mvn-compile-errors*")	  
+    (with-current-buffer (get-buffer-create "*erl-mvn-compile-errors*")
       (if (and erl-mvn-popup-compiler-output
                (not (and (eq errors '()) (eq warnings '()))))
-          (save-selected-window        
+          (save-selected-window
             (select-window (or (get-buffer-window (current-buffer))
                                (display-buffer (current-buffer))))))
       (fundamental-mode)
@@ -768,26 +768,26 @@ is not nil."
 
 (defun erl-mvn-show-eunit-results(results mark-buffer)
   "Private function. Show the results of an eunit run."
-  (let ((base-dir 
-         (with-current-buffer mark-buffer 
+  (let ((base-dir
+         (with-current-buffer mark-buffer
            (file-name-directory buffer-file-name))))
     (save-excursion
-      (with-current-buffer (get-buffer-create "*erl-mvn-eunit-results*")	  
+      (with-current-buffer (get-buffer-create "*erl-mvn-eunit-results*")
         (if erl-mvn-popup-eunit-output
-            (save-selected-window        
+            (save-selected-window
               (select-window (or (get-buffer-window (current-buffer))
                                  (display-buffer (current-buffer))))))
         (fundamental-mode)
         (setq buffer-read-only nil)
         (kill-region (point-min) (point-max))
-        (mapcar 
+        (mapcar
          (lambda (r)
            (mcase r
              (['error function line reason]
               (insert (concat base-dir reason))
               line)
-             
-             (['ok function line] 
+
+             (['ok function line]
               line)))
          results)
         (compilation-mode)
@@ -797,24 +797,24 @@ is not nil."
   "Private function that formats a list of compiler errors as
 returned by compile:file/2 and inserts them into the current
 buffer."
-  (mapcar 
-   (lambda(file-e)      
+  (mapcar
+   (lambda(file-e)
      (mlet [file issues] file-e
        (mapcar (lambda (e)
 		 (mlet [line type raw-msg] e
-		   (let  ((msg 
-			   (mcase type                 
+		   (let  ((msg
+			   (mcase type
 			     ('erl_lint (mcase raw-msg
                                           ([p1 p2]
                                            (format "%s %s" p1 p2))
-                                          
+
                                           (p
                                            (format "%s" p))))
 			     ('erl_parse (mcase raw-msg
-                                           ((p1 p2) 
+                                           ((p1 p2)
                                             (format "%s %s" p1 p2))
-                                           
-                                           (p 
+
+                                           (p
                                             (format "%s" p))))
 			     (_ raw-msg))))
 		     (insert (format "%s:%s %s\n" file line msg)))))
@@ -825,11 +825,11 @@ buffer."
   "Private function that formats a list of compiler warnings as
 returned by compile:file/2 and inserts them into the current
 buffer."
-  (mapcar 
-   (lambda(file-e) 
+  (mapcar
+   (lambda(file-e)
      (mlet [file issues] file-e
-       (mapcar 
-        (lambda(e)        
+       (mapcar
+        (lambda(e)
           (mlet [line type raw-msg] e
             (insert (format "%s:%s %s\n" file line raw-msg))))
         issues)))
@@ -850,12 +850,12 @@ buffer."
   "Private function. Returns a list of line numbers extracted
 from the issues returned by the rpc to 'compile:file(...)'"
   (erl-mvn-lists-join
-   (mapcar 
-    (lambda(file-e) 
+   (mapcar
+    (lambda(file-e)
       (mlet [file issues] file-e
-        (append 
-         (mapcar 
-          (lambda(e)        
+        (append
+         (mapcar
+          (lambda(e)
            (mlet [line _ reason] e
              (list file line reason)))
           issues))))
@@ -871,7 +871,7 @@ all exiting warning face properties."
       (mapcar
        (lambda (e)
          (mlet (file line reason) e
-           (if (or 
+           (if (or
                 (string= file buffer-file-name)
                 (string= file erl-mvn-tmp-source-file))
                (mlet (start-pos end-pos) (erl-mvn-get-line-pos line)
@@ -899,7 +899,7 @@ color to green or red of the line or function header of each test."
                     (overlay-put ov 'eunit-overlay 't)
                     (overlay-put ov 'face '(:background "green" :foreground "black"))
                     )))
-               
+
                (['error function line reason]
                 (mlet (start-pos end-pos) (erl-mvn-get-line-pos line)
                   (let ((ov (make-overlay start-pos end-pos)))
@@ -912,9 +912,9 @@ color to green or red of the line or function header of each test."
   "Private function. Joins a list of lists to a list: ((a b
 c) (d) (e f)) --> (a b c d e f)."
   (let ((res '()))
-    (mapcar 
+    (mapcar
      (lambda(l)
-       (mapcar 
+       (mapcar
         (lambda(x)
           (setq res (cons x res)))
         l))
@@ -931,7 +931,7 @@ c) (d) (e f)) --> (a b c d e f)."
   (erl-mvn-make-buffer-name (concat "erl-mvn-maven-output-" str)))
 
 (defun erl-mvn-insert-with-color(bg-col fg-col text)
-  "Private function. Inserts text into to buffer with a background color. 
+  "Private function. Inserts text into to buffer with a background color.
 NOTE: will not work when inserting into a buffer with font-lock-mode turned on."
   (put-text-property 0 (length text) 'face `(:background ,bg-col :foreground ,fg-col) text)
   (insert text))
@@ -941,7 +941,7 @@ NOTE: will not work when inserting into a buffer with font-lock-mode turned on."
 (defun erl-mvn-get-color-for-string(key)
   (if (assoc key key-to-color)
       (cdr (assoc key key-to-color))
-    (let ((new-color 
+    (let ((new-color
            (do
                ((col (random-light-color 500)))
                ((not (find-by-value col key-to-color)) col))))
@@ -969,16 +969,16 @@ NOTE: will not work when inserting into a buffer with font-lock-mode turned on."
 (defun find-by-value(value alist)
   "Private Function. Returns the first pair whith cdr == value from alist."
   (let ((res 'nil))
-    (mapcar 
+    (mapcar
      (lambda (e)
        (if (and
-            (not alist) 
+            (not alist)
             (equal (cdr e) value))
            (setq res e)))
      alist)
     res))
-      
-  
+
+
 
 
 ;; ----------------------------------------------------------------------
@@ -987,5 +987,5 @@ NOTE: will not work when inserting into a buffer with font-lock-mode turned on."
 
 
 
-	    
-	
+
+
