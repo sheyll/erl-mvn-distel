@@ -29,7 +29,7 @@
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
 %%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
-%%%%%% @copyright (C) 2011, Lindenbaum GmbH
+%%%%%% @copyright (C) 2012, Lindenbaum GmbH
 %%%%%%
 %%%%%% @doc
 %%%%%% @end
@@ -90,7 +90,7 @@ init(_Config) ->
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
 %%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
-%%%%%% @copyright (C) 2011, Lindenbaum GmbH
+%%%%%% @copyright (C) 2012, Lindenbaum GmbH
 %%%%%%
 %%%%%%=============================================================================
 -module(%s_test).
@@ -102,8 +102,8 @@ lifecycle_test() ->
     M = em:new(),
     em:strict(M, some_child, start_link, [], {return, {ok, SomeChild}}),
     em:replay(M),
-    Pid = test_utils:start_unregistered(%s, [config]),
+    Pid = lbm_test_lib:start(%s, [config]),
     em:verify(M),
-    test_utils:shutdown_unregistered(Pid).
+    lbm_test_lib:shutdown(Pid).
 
 " module module))

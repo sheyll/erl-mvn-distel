@@ -29,7 +29,7 @@
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
 %%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
-%%%%%% @copyright (C) 2011, Lindenbaum GmbH
+%%%%%% @copyright (C) 2012, Lindenbaum GmbH
 %%%%%%
 %%%%%% @doc
 %%%%%% Documentation for this state machine.
@@ -81,22 +81,18 @@ init([]) ->
 %%%% @private
 %%%%------------------------------------------------------------------------------
 handle_event(Event, StateName, State) ->
-    report(error, [unexpected_event, {event, Event}, {state_name, StateName}]),
     {stop, unexpected_event, State}.
 
 %%%%------------------------------------------------------------------------------
 %%%% @private
 %%%%------------------------------------------------------------------------------
 handle_sync_event(Event, From, StateName, State) ->
-    Context = [{from, From}, {state_name, StateName}],
-    report(error, [unexpected_sync_event, {event, Event}] ++ Context),
     {stop, unexpected_sync_event, {undefined, Event}, State}.
 
 %%%%------------------------------------------------------------------------------
 %%%% @private
 %%%%------------------------------------------------------------------------------
 handle_info(Info, StateName, State) ->
-    report(error, [unexpected_info, {info, Info}, {state_name, StateName}]),
     {next_state, StateName, State}.
 
 %%%%------------------------------------------------------------------------------
@@ -115,17 +111,6 @@ code_change(_OldVsn, _StateName, State, _Extra) ->
 %%%%%% Internal Functions
 %%%%%%=============================================================================
 
-%%%%------------------------------------------------------------------------------
-%%%% @private
-%%%%------------------------------------------------------------------------------
--spec report(info | error, [atom() | {atom(), term()}]) -> ok.
-report(info, Report) ->
-    DefaultReport = [{module, ?MODULE}, {server, self()}],
-    error_logger:info_report(application_name_here, DefaultReport ++ Report);
-report(error, Report) ->
-    DefaultReport = [{module, ?MODULE}, {server, self()}],
-    error_logger:error_report(application_name_here, DefaultReport ++ Report).
-
 " module))
 
 (defun gen-fsm-test-source-template(module)
@@ -140,7 +125,7 @@ report(error, Report) ->
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
 %%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
-%%%%%% @copyright (C) 2011, Lindenbaum GmbH
+%%%%%% @copyright (C) 2012, Lindenbaum GmbH
 %%%%%%
 %%%%%%=============================================================================
 
@@ -154,7 +139,7 @@ report(error, Report) ->
 
 unhandled_event_test() ->
     process_flag(trap_exit, true),
-    Pid = test_utils:start_unregistered(%s),
+    Pid = lbm_test_lib:start(%s),
     ?assertEqual(ok, gen_fsm:send_all_state_event(Pid, some_event)),
     receive
         {'EXIT', _, unexpected_event} ->
@@ -165,7 +150,7 @@ unhandled_event_test() ->
 
 unhandled_sync_event_test() ->
     process_flag(trap_exit, true),
-    Pid = test_utils:start_unregistered(%s),
+    Pid = lbm_test_lib:start(%s),
     ?assertEqual({undefined, some_event},
                  gen_fsm:sync_send_all_state_event(Pid, some_event)),
     receive
@@ -176,9 +161,9 @@ unhandled_sync_event_test() ->
     end.
 
 unhandled_info_test() ->
-    Pid = test_utils:start_unregistered(%s),
+    Pid = lbm_test_lib:start(%s),
     Pid ! some_info,
-    test_utils:shutdown_unregistered(Pid).
+    lbm_test_lib:shutdown(Pid).
 
 code_change_test() ->
     ?assertEqual({ok, state}, %s:code_change(oldvsn, statename, state, extra)).

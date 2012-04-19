@@ -29,7 +29,7 @@
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
 %%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
-%%%%%% @copyright (C) 2011, Lindenbaum GmbH
+%%%%%% @copyright (C) 2012, Lindenbaum GmbH
 %%%%%%
 %%%%%% @doc
 
@@ -85,7 +85,7 @@ stop(_State) ->
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
 %%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
-%%%%%% @copyright (C) 2011, Lindenbaum GmbH
+%%%%%% @copyright (C) 2012, Lindenbaum GmbH
 %%%%%%
 %%%%%%=============================================================================
 

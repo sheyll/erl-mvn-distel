@@ -2,7 +2,6 @@
 
 (require 'application-skeleton)
 (require 'supervisor-skeleton)
-(require 'lbm_dynamic_resource_manager-skeleton)
 (require 'gen-server-skeleton)
 (require 'gen-fsm-skeleton)
 ;; ----------------------------------------------------------------------
@@ -87,18 +86,6 @@
                                                             erl-mvn-refresh-project :keys "C-c C-v r"))
                                 (sep0b . (menu-item "--"))
 
-
-                                (sep1 . (menu-item "Lindenbaum Skeletons:"))
-                                (sep1a . (menu-item "--"))
-                                (lbm_dynamic_resource_manager-skel .
-                                                                   (menu-item "Custodian Provider"
-                                                                              lbm_dynamic_resource_manager-skeleton :keys "C-c C-v p"))
-                                (lbm_resource_guard-skel .
-                                                         (menu-item "Custodian Resource"
-                                                                    lbm_resource_guard-skeleton :keys "C-c C-v o"))
-                                (sep1b . (menu-item "--"))
-
-
                                 (sep1c . (menu-item "OTP Skeletons:"))
                                 (sep1d . (menu-item "--"))
                                 (application-skel .
@@ -143,8 +130,8 @@
 
     (define-key the-map (kbd "C-c C-v a") 'application-skeleton)
     (define-key the-map (kbd "C-c C-v u") 'supervisor-skeleton)
-    (define-key the-map (kbd "C-c C-v p") 'lbm_dynamic_resource_manager-skeleton)
     (define-key the-map (kbd "C-c C-v g") 'gen-server-skeleton)
+    (define-key the-map (kbd "C-c C-v g") 'gen-fsm-skeleton)
 
     (define-key the-map [?\C-c ?\C-v ?s] 'erl-mvn-toggle-source-test)
     (define-key the-map [?\C-c ?\C-v ?t] 'erl-mvn-eunit-test-function)

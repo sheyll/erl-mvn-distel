@@ -29,7 +29,7 @@
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
 %%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
-%%%%%% @copyright (C) 2011, Lindenbaum GmbH
+%%%%%% @copyright (C) 2012, Lindenbaum GmbH
 %%%%%%
 %%%%%% @doc
 %%%%%% Documentation for this server.
@@ -83,21 +83,18 @@ init([]) ->
 %%%% @private
 %%%%------------------------------------------------------------------------------
 handle_call(Request, From, State) ->
-    report(error, [unexpected_call, {from, From}, {request, Request}]),
     {stop, unexpected_call, {undefined, Request}, State}.
 
 %%%%------------------------------------------------------------------------------
 %%%% @private
 %%%%------------------------------------------------------------------------------
 handle_cast(Request, State) ->
-    report(error, [unexpected_cast, {request, Request}]),
     {stop, unexpected_cast, State}.
 
 %%%%------------------------------------------------------------------------------
 %%%% @private
 %%%%------------------------------------------------------------------------------
 handle_info(Info, State) ->
-    report(error, [unexpected_info, {info, Info}]),
     {noreply, State}.
 
 %%%%------------------------------------------------------------------------------
@@ -116,17 +113,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%%%%% Internal Functions
 %%%%%%=============================================================================
 
-%%%%------------------------------------------------------------------------------
-%%%% @private
-%%%%------------------------------------------------------------------------------
--spec report(info | error, [atom() | {atom(), term()}]) -> ok.
-report(info, Report) ->
-    DefaultReport = [{module, ?MODULE}, {server, self()}],
-    error_logger:info_report(?APP, DefaultReport ++ Report);
-report(error, Report) ->
-    DefaultReport = [{module, ?MODULE}, {server, self()}],
-    error_logger:error_report(?APP, DefaultReport ++ Report).
-
 " module))
 
 (defun gen-server-test-source-template(module)
@@ -141,7 +127,7 @@ report(error, Report) ->
 %%%%%% @author Timo Koepke <timo.koepke@lindenbaum.eu>
 %%%%%% @author Tobias Schlager <tobias.schlager@lindenbaum.eu>
 %%%%%% @author Olle Toernstroem  <olle.toernstroem@lindenbaum.eu>
-%%%%%% @copyright (C) 2011, Lindenbaum GmbH
+%%%%%% @copyright (C) 2012, Lindenbaum GmbH
 %%%%%%
 %%%%%%=============================================================================
 
@@ -155,7 +141,7 @@ report(error, Report) ->
 
 unhandled_call_test() ->
     process_flag(trap_exit, true),
-    {ok, Pid} = test_utils:start_registered(%s),
+    {ok, Pid} = lbm_test_lib:start(%s),
     Pid ! some_info,
     ?assertEqual({undefined, some_call}, gen_server:call(%s, some_call)),
     receive
@@ -167,7 +153,7 @@ unhandled_call_test() ->
 
 unhandled_cast_test() ->
     process_flag(trap_exit, true),
-    test_utils:start_registered(%s),
+    lbm_test_lib:start(%s),
     ?assertEqual(ok, gen_server:cast(%s, some_cast)),
     receive
         {'EXIT', _, unexpected_cast} ->
@@ -185,22 +171,8 @@ code_change_test() ->
 terminate_test() ->
     ?assertMatch(ok, %s:terminate(reason, state)).
 
-report_test() ->
-    logmock:start(self(),
-                  [logmock:info_report(?APP,
-                                       [{module, %s},
-                                        {server, self()},
-                                        info]),
-                   logmock:error_report(?APP,
-                                        [{module, %s},
-                                         {server, self()},
-                                         error])]),
-    %s:report(info, [info]),
-    %s:report(error, [error]),
-    logmock:verify().
-
 %%%%%%=============================================================================
 %%%%%% Internal Functions
 %%%%%%=============================================================================
 
-" module module module module module module module module module module module module))
+" module module module module module module module module))
