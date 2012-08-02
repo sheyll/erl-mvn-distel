@@ -106,58 +106,80 @@ merge_or_prepend({trace, Pid, return_from, FromMFA, RetVal},
     T ++ [{trace, Pid, return_from_to, FromMFA, RetVal, ToMFA}|Acc].
 
 format_trace({trace, Pid, call, {M, F, A}},Acc) ->
-    MF = lists:flatten(io_lib:format("~w:~w", [M,F])),
-    [{Pid, lists:flatten(io_lib:format("~-15w  >> ~s  ~150p~n~n", [Pid, MF, A]))}| Acc];
+    acc_str(Pid, format_cols_ss(Pid, "", " >> ", format_mfa({M,F,A}), A), Acc);
 
-format_trace({trace, Pid, exception_from, {M, F, A}, RV},Acc) ->
-    MF = lists:flatten(io_lib:format("~w:~w/~w", [M,F,A])),
-    [{Pid, lists:flatten(io_lib:format(" .  * x\\ \\        ___~n  . . \\x  \\   __ /   \\_~nx +.x* +  ** (_ / /    <\\   /\\   /\\   /\\   /\\   /~n  *+   * *** (__\\/ )   <  /    \\    /    \\    /~n  + / +  *** (____)   </   \\/   \\/   \\/   \\/   \\~n x *  / //    (____)___/~n    / * *~n     /~n~-15w  ***EXCEPTION*** ~s  ~130p~n~n", [Pid, MF, RV]))}| Acc];
+format_trace({trace, Pid, exception_from, MFA, Exc},Acc) ->
+    acc_str(Pid, fist(),
+            acc_str(Pid, format_cols_ss(Pid, format_mfa(MFA), "<===", "*EXCEPTION*", Exc), Acc));
 
-format_trace({trace, Pid, return_from, {M, F, A}, RV},Acc) ->
-    MF = lists:flatten(io_lib:format("~w:~w/~w", [M,F,A])),
-    [{Pid, lists:flatten(io_lib:format("~-15w  << ~s  ~150p~n~n", [Pid, MF, RV]))}| Acc];
+format_trace({trace, Pid, return_from, MFA, RV},Acc) ->
+    acc_str(Pid, format_cols_ss(Pid, "", " << ", format_mfa(MFA), RV), Acc);
 
-format_trace({trace, Pid, return_to, {M, F, A}},Acc) ->
-    MF = lists:flatten(io_lib:format("~w:~w/~w <<", [M,F,A])),
-    [{Pid, lists:flatten(io_lib:format("~-15w  ~s~n~n", [Pid, MF]))}| Acc];
+format_trace({trace, Pid, return_to, MFA},Acc) ->
+    acc_str(Pid, format_cols_ss(Pid, format_mfa(MFA), " << ", "", return_to), Acc);
 
 format_trace({trace, Pid, return_from_to, F, R, T}, Acc) ->
-    [{Pid, format_return_from_to(Pid, F, R, T)}| Acc];
+    acc_str(Pid, format_return_from_to(Pid, F, R, T), Acc);
 
 format_trace({trace, Pid, 'receive', Msg},Acc) ->
-    [{Pid, lists:flatten(io_lib:format   ("~-15w  <---------                                       ~130p~n~n", [Pid, Msg]))}| Acc];
+    acc_str(Pid, format_cols_ss(Pid, "RECEIVE", "<---", "", Msg), Acc);
 
 format_trace({trace, From, send, Msg, To},Acc) ->
-    [{From, lists:flatten(io_lib:format  ("~-15w  --------->  ~-36w ~150p~n~n", [From, To, Msg]))}| Acc];
+    acc_str(From, format_cols_sw(From, "SEND", "--->", To, Msg), Acc);
 
 format_trace({trace, Pid, 'register', Name},Acc) ->
-    [{Pid, lists:flatten(io_lib:format   ("~-15w   REGISTER   ~w~n~n", [Pid, Name]))}| Acc];
+    acc_str(Pid, format_cols_ww(Pid, Name, " :: ", Pid, 'REGISTER'), Acc);
 
 format_trace({trace, Pid, 'unregister', Name},Acc) ->
-    [{Pid, lists:flatten(io_lib:format   ("~-15w  UNREGISTER  ~w~n~n", [Pid, Name]))}| Acc];
+    acc_str(Pid, format_cols_ww(Pid, Name, " /= ", Pid, 'UNREGISTER'), Acc);
 
 format_trace({trace, Parent, spawn, Child, How},Acc) ->
-    [{Parent, lists:flatten(io_lib:format("~-15w  --- * --->  ~-36w ~150p~n~n", [Parent, Child, How]))}| Acc];
+    acc_str(Parent, format_cols_sw(Parent, "*SPAWN*", "-*->", Child, How), Acc);
 
 format_trace({trace, Left, link, Right},Acc) ->
-    [{Left, lists:flatten(io_lib:format  ("~-15w  ===8======  ~-15w~n~n", [Left, Right]))},
-     {Right, lists:flatten(io_lib:format ("~-15w  ======8===  ~-15w~n~n", [Right, Left]))}
-     | Acc];
+    acc_str(Left, format_cols_ww(Left, Left, "<==>", Right, 'LINK'), Acc);
 
 format_trace({trace, Left, unlink, Right},Acc) ->
-    [{Left, lists:flatten(io_lib:format  ("~-15w  ====/  /==  ~-15w~n~n", [Left, Right]))}| Acc];
+    acc_str(Left, format_cols_ww(Left, Left, "X==X", Right, 'UNLINK'), Acc);
 
-format_trace({trace, Left, getting_unlinked, Right},Acc) ->
-    [{Left, lists:flatten(io_lib:format  ("~-15w  ==/  /====  ~-15w~n~n", [Left, Right]))}| Acc];
+format_trace({trace, _Left, getting_unlinked, _Right},Acc) ->
+    %% ignored
+    Acc;
 
 format_trace({trace, Pid, exit, Reason},Acc) ->
-    [{Pid, lists:flatten(io_lib:format   ("~-15w  ***EXIT***  ~150p~n~n", [Pid, Reason]))}| Acc];
+    acc_str(Pid, format_cols_ss(Pid, "*EXIT*", "<===", "", Reason), Acc);
 
 format_trace(Other, Acc) ->
     [{lists:flatten(io_lib:format("~p ~n~n", [Other]))}|Acc].
 
-format_return_from_to(Pid, {FromM, FromF, FromA}, RetVal, {ToM, ToF, ToA}) ->
-    lists:flatten(
-      io_lib:format(
-        "~-15w  ~w:~w/~w << ~w:~w/~w  ~150p~n~n",
-        [Pid, ToM, ToF, ToA, FromM, FromF, FromA, RetVal])).
+acc_str(Pid, Str, Acc) ->
+    [{Pid, Str}|Acc].
+
+format_cols_ww(Col1, Col2, Sep, Col3, Col4) ->
+    lists:flatten(io_lib:format("~-15w ~40w ~4s ~-40w  ~150p~n~n", [Col1, Col2, Sep, Col3, Col4])).
+format_cols_ws(Col1, Col2, Sep, Col3, Col4) ->
+    lists:flatten(io_lib:format("~-15w ~40w ~4s ~-40s  ~150p~n~n", [Col1, Col2, Sep, Col3, Col4])).
+format_cols_sw(Col1, Col2, Sep, Col3, Col4) ->
+    lists:flatten(io_lib:format("~-15w ~40s ~4s ~-40w  ~150p~n~n", [Col1, Col2, Sep, Col3, Col4])).
+format_cols_ss(Col1, Col2, Sep, Col3, Col4) ->
+    lists:flatten(io_lib:format("~-15w ~40s ~4s ~-40s  ~150p~n~n", [Col1, Col2, Sep, Col3, Col4])).
+
+format_return_from_to(Pid, From, RetVal, To) ->
+    FromStr = format_mfa(From),
+    ToStr = format_mfa(To),
+    format_cols_ss(Pid, ToStr, " << ", FromStr, RetVal).
+
+format_mfa({M,F,A}) when is_list(A) ->
+    format_mfa({M,F,length(A)});
+format_mfa({M,F,A}) ->
+    Str = lists:flatten(io_lib:format("~w:~w/~w", [M,F,A])),
+    ShortStr = lists:nthtail(max(0, length(Str) - 40), Str),
+    if length(Str) > length(ShortStr) ->
+            "(..)" ++  lists:nthtail(4, ShortStr);
+       true ->
+            ShortStr
+    end.
+
+fist() ->
+    Fist = " .  * x\\ \\        ___\n  . . \\x  \\   __ /   \\_\nx +.x* +  ** (_ / /    <\\   /\\   /\\   /\\   /\\   /\n  *+   * *** (__\\/ )   <  /    \\    /    \\    /\n  + / +  *** (____)   </   \\/   \\/   \\/   \\/   \\\n x *  / //    (____)___/\n    / * *\n     /\n",
+    lists:flatten(io_lib:format("~s", [Fist])).
