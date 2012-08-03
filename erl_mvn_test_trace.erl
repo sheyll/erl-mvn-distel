@@ -2,7 +2,6 @@
 
 -export([trace_test_file_line/3]).
 
-
 trace_test_file_line(SourceFile, TestSourceFile, Line) ->
     {ok, Mod} = erl_mvn_source_utils:get_module(SourceFile),
     {ok, TestMod} = erl_mvn_source_utils:get_module(TestSourceFile),
@@ -157,8 +156,6 @@ acc_str(Pid, Str, Acc) ->
 
 format_cols_ww(Col1, Col2, Sep, Col3, Col4) ->
     lists:flatten(io_lib:format("~-15w ~40w ~4s ~-40w  ~150p~n~n", [Col1, Col2, Sep, Col3, Col4])).
-format_cols_ws(Col1, Col2, Sep, Col3, Col4) ->
-    lists:flatten(io_lib:format("~-15w ~40w ~4s ~-40s  ~150p~n~n", [Col1, Col2, Sep, Col3, Col4])).
 format_cols_sw(Col1, Col2, Sep, Col3, Col4) ->
     lists:flatten(io_lib:format("~-15w ~40s ~4s ~-40w  ~150p~n~n", [Col1, Col2, Sep, Col3, Col4])).
 format_cols_ss(Col1, Col2, Sep, Col3, Col4) ->

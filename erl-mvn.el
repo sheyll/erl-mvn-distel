@@ -576,9 +576,9 @@ just one node."
   (sleep-for 0.2)
   (erpc node 'c 'c (list (concat erl-mvn-erl-source-path "erl_mvn_eunit.erl") `([outdir ,erl-mvn-erl-source-path])))
   (sleep-for 0.2)
-  (erpc node 'c 'c (list (concat erl-mvn-erl-source-path "erl_mvn_test_trace.erl") `([outdir ,erl-mvn-erl-source-path])))
-  (sleep-for 0.2)
   (erpc node 'c 'c (list (concat erl-mvn-erl-source-path "erl_mvn_source_utils.erl") `([outdir ,erl-mvn-erl-source-path])))
+  (sleep-for 0.2)
+  (erpc node 'c 'c (list (concat erl-mvn-erl-source-path "erl_mvn_test_trace.erl") `([outdir ,erl-mvn-erl-source-path])))
   (sleep-for 0.2))
 
 (defun erl-mvn-eunit-test-function()
@@ -971,8 +971,3 @@ NOTE: will not work when inserting into a buffer with font-lock-mode turned on."
 ;; ----------------------------------------------------------------------
 ;;  Tests
 ;; ----------------------------------------------------------------------
-
-
-
-
-
