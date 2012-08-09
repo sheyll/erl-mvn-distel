@@ -75,34 +75,8 @@ trace_loop(Acc) ->
         {stop_tracer, From} ->
             From ! {tracer_stopped,  lists:reverse(Acc)};
         TraceMsg ->
-            trace_loop(merge_return(TraceMsg, Acc))
+            trace_loop([TraceMsg| Acc])
     end.
-
-
-merge_return(T = {trace, Pid, return_from, _, _}, Acc) ->
-    MatchingTo = fun({_, P, return_to, _}) -> P == Pid;
-                          (_) -> false
-                       end,
-    merge_or_prepend(T, lists:partition(MatchingTo, Acc));
-
-merge_return(T = {trace, Pid, return_to, _}, Acc) ->
-    MatchingFrom = fun({_, P, return_from, _, _}) -> P == Pid;
-                      (_) -> false end,
-    merge_or_prepend(T, lists:partition(MatchingFrom, Acc));
-
-merge_return(T, Acc) ->
-    [T|Acc].
-
-merge_or_prepend(T, {[], Acc}) ->
-    [T|Acc];
-merge_or_prepend({trace, Pid, return_to, ToMFA},
-                         {Ms = [_|_], Acc}) ->
-    [{trace, Pid, return_from, FromMFA, RetVal}|T] = lists:reverse(Ms),
-    T ++ [{trace, Pid, return_from_to, FromMFA, RetVal, ToMFA}|Acc];
-merge_or_prepend({trace, Pid, return_from, FromMFA, RetVal},
-                         {Ms = [_|_], Acc}) ->
-    [{trace, Pid, return_to, ToMFA}|T] = lists:reverse(Ms),
-    T ++ [{trace, Pid, return_from_to, FromMFA, RetVal, ToMFA}|Acc].
 
 format_trace({trace, Pid, call, {M, F, A}},Acc) ->
     acc_str(Pid, format_cols_ss(Pid, "", " >> ", format_mfa({M,F,A}), A), Acc);
@@ -116,9 +90,6 @@ format_trace({trace, Pid, return_from, MFA, RV},Acc) ->
 
 format_trace({trace, Pid, return_to, MFA},Acc) ->
     acc_str(Pid, format_cols_ss(Pid, format_mfa(MFA), " << ", "", return_to), Acc);
-
-format_trace({trace, Pid, return_from_to, F, R, T}, Acc) ->
-    acc_str(Pid, format_return_from_to(Pid, F, R, T), Acc);
 
 format_trace({trace, Pid, 'receive', Msg},Acc) ->
     acc_str(Pid, format_cols_ss(Pid, "RECEIVE", "<---", "", Msg), Acc);
@@ -160,11 +131,6 @@ format_cols_sw(Col1, Col2, Sep, Col3, Col4) ->
     lists:flatten(io_lib:format("~-15w ~40s ~4s ~-40w  ~150p~n~n", [Col1, Col2, Sep, Col3, Col4])).
 format_cols_ss(Col1, Col2, Sep, Col3, Col4) ->
     lists:flatten(io_lib:format("~-15w ~40s ~4s ~-40s  ~150p~n~n", [Col1, Col2, Sep, Col3, Col4])).
-
-format_return_from_to(Pid, From, RetVal, To) ->
-    FromStr = format_mfa(From),
-    ToStr = format_mfa(To),
-    format_cols_ss(Pid, ToStr, " << ", FromStr, RetVal).
 
 format_mfa({M,F,A}) when is_list(A) ->
     format_mfa({M,F,length(A)});
