@@ -126,11 +126,11 @@ acc_str(Pid, Str, Acc) ->
     [{Pid, Str}|Acc].
 
 format_cols_ww(Col1, Col2, Sep, Col3, Col4) ->
-    lists:flatten(io_lib:format("~-15w ~40w ~4s ~-40w  ~150p~n~n", [Col1, Col2, Sep, Col3, Col4])).
+    lists:flatten(io_lib:format("~-15w ~40w ~4s ~-40w  ~-70w~n~n", [Col1, Col2, Sep, Col3, Col4])).
 format_cols_sw(Col1, Col2, Sep, Col3, Col4) ->
-    lists:flatten(io_lib:format("~-15w ~40s ~4s ~-40w  ~150p~n~n", [Col1, Col2, Sep, Col3, Col4])).
+    lists:flatten(io_lib:format("~-15w ~40s ~4s ~-40w  ~-70w~n~n", [Col1, Col2, Sep, Col3, Col4])).
 format_cols_ss(Col1, Col2, Sep, Col3, Col4) ->
-    lists:flatten(io_lib:format("~-15w ~40s ~4s ~-40s  ~150p~n~n", [Col1, Col2, Sep, Col3, Col4])).
+    lists:flatten(io_lib:format("~-15w ~40s ~4s ~-40s  ~-70w~n~n", [Col1, Col2, Sep, Col3, Col4])).
 
 format_mfa({M,F,A}) when is_list(A) ->
     format_mfa({M,F,length(A)});

@@ -21,12 +21,12 @@
   (car (process-lines "hostname" "-f"))
   "The hostname of the erlang nodes for maven and distel.")
 
-(defvar erl-mvn-popup-compiler-output 'nil
+(defvar erl-mvn-popup-compiler-output 't
   "Setting this to non nil will cause a buffer with the
  compilation results to popup everytime an error or warning was
  returned from an erlang buffer compilation")
 
-(defvar erl-mvn-popup-eunit-output 'nil
+(defvar erl-mvn-popup-eunit-output 't
   "Setting this to non nil will cause a buffer with the
  eunit results to popup everytime tests were run.")
 
@@ -427,28 +427,22 @@ buffer, so the user is able to follow the output."
   (let* ((artifact-id (erl-mvn-pom-lookup pom 'artifactId))
 	 (node-name (erl-mvn-make-node-name artifact-id))
 	 (mvn-output-buffer (erl-mvn-make-mvn-output-buffer-name artifact-id)))
-    (save-excursion
-      (with-current-buffer
-	  (get-buffer-create mvn-output-buffer)
-        (setq buffer-read-only nil)
-        (save-selected-window
-          (select-window (or (get-buffer-window (current-buffer))
-                             (display-buffer (current-buffer))))
-          (goto-char (point-max))
-          (let ((start (point)))
-            (call-process erl-mvn-maven-executable
-                          nil ; infile
-                          mvn-output-buffer
-                          't   ; redisplay
-                          "-f" pom
-                          "-U" ; update dependencies
-                          (concat "-Dremote=" node-name)
-                          "-DwithDependencies=true"
-                          "clean"
-                          "erlang:show-build-info"
-			  "erlang:upload-tests")
-            (setq buffer-read-only 't)
-            (erl-mvn-to-lines (buffer-substring-no-properties start (point-max)))))))))
+    (erl-mvn-with-buffer
+     mvn-output-buffer
+     (goto-char (point-max))
+     (let ((start (point)))
+       (call-process erl-mvn-maven-executable
+                     nil ; infile
+                     mvn-output-buffer
+                     't   ; redisplay
+                     "-f" pom
+                     "-U" ; update dependencies
+                     (concat "-Dremote=" node-name)
+                     "-DwithDependencies=true"
+                     "clean"
+                     "erlang:show-build-info"
+                     "erlang:upload-tests")
+       (erl-mvn-to-lines (buffer-substring-no-properties start (point-max)))))))
 
 (defun erl-mvn-is-maven-erlang-project(pom-file)
   "Private function. Returns t if the pom-file exists and defines
@@ -609,39 +603,29 @@ Ignores modules not in the test source directory."
          (erl-mvn-toggle-source-test))
      (if (erl-mvn-is-relevant-erl-buffer)
          (let* ((node-name (erl-mvn-make-node-name erl-mvn-artifact-id))
-                (erl-popup-on-output-old erl-popup-on-output)
                 (node (make-symbol node-name))
                 (line (apply line-fun '()))
                 (source-under-test (car (erl-mvn-get-source-and-test-source)))
                 (args (list source-under-test erl-mvn-tmp-source-file line)))
            (setq key-to-color '())
-           (setq erl-popup-on-output erl-mvn-popup-eunit-output)
            (remove-overlays 'nil 'nil 'eunit-overlay 't)
            (setq erl-eunit-source-buffer (current-buffer))
            (erl-spawn
              (erl-send-rpc node 'erl_mvn_test_trace 'trace_test_file_line args)
-             (erl-receive (erl-popup-on-output-old erl-eunit-source-buffer)
+             (erl-receive (erl-eunit-source-buffer)
                  ((['rex ['trace_test_result trace-result test-result]]
                    (erl-mvn-show-eunit-results test-result erl-eunit-source-buffer)
-                   (save-excursion
-                     (with-current-buffer (get-buffer-create "*erl-mvn-trace-output*")
-                       (save-selected-window
-                         (select-window (or (get-buffer-window (current-buffer))
-                                            (display-buffer (current-buffer)))))
-                       (let ((old-kill-ring (copy-list kill-ring)))
-                         (kill-region (point-min) (point-max))
-                         (mapcar
-                          (lambda (e)
-                            (mcase e
+                   (erl-mvn-with-buffer "*erl-mvn-trace-output*"
+                       (mapcar
+                        (lambda (e)
+                          (mcase e
 
-                              ([line]
-                               (erl-mvn-insert-with-color "white" "black" line))
+                            ([line]
+                             (erl-mvn-insert-with-color "white" "black" line))
 
-                              ([pid line]
-                               (erl-mvn-insert-with-color (erl-mvn-get-color-for-string pid) "black" line))))
-                          trace-result)
-                         (setq kill-ring old-kill-ring))))
-                   (setq erl-popup-on-output erl-popup-on-output-old))))))))))
+                            ([pid line]
+                             (erl-mvn-insert-with-color (erl-mvn-get-color-for-string pid) "black" line))))
+                        trace-result)))))))))))
 
 (defun erl-mvn-eunit-run-at-line(line-fun)
   "Private function. Runs a single test function near the point, or
@@ -656,19 +640,16 @@ the buffer containing the test."
          (erl-mvn-toggle-source-test))
      (if (erl-mvn-is-relevant-erl-buffer)
          (let* ((node-name (erl-mvn-make-node-name erl-mvn-artifact-id))
-                (erl-popup-on-output-old erl-popup-on-output)
                 (node (make-symbol node-name))
                 (line (apply line-fun '()))
                 (args (list erl-mvn-tmp-source-file line)))
-           (setq erl-popup-on-output erl-mvn-popup-eunit-output)
            (remove-overlays 'nil 'nil 'eunit-overlay 't)
            (setq erl-eunit-source-buffer (current-buffer))
            (erl-spawn
              (erl-send-rpc node 'erl_mvn_eunit 'run_test_file_line args)
-             (erl-receive (erl-popup-on-output-old erl-eunit-source-buffer)
+             (erl-receive (erl-eunit-source-buffer)
                  ((['rex result]
-                   (erl-mvn-show-eunit-results result erl-eunit-source-buffer)
-                   (setq erl-popup-on-output erl-popup-on-output-old))))))))))
+                   (erl-mvn-show-eunit-results result erl-eunit-source-buffer))))))))))
 
 (defun erl-mvn-prepare-compilation-current-buffer()
   "Private function. Creates intermediate directories, and stores the contents of the buffer for compilation.
@@ -685,24 +666,21 @@ currently managed. If only-check is non-nil, no code will
 actually be loaded and is checked only for errors and warnings"
   (interactive "Sload-module: ")
     (let*
-        ((old-kill-ring (copy-list kill-ring))
-         (fn (file-truename (buffer-file-name)))
+        ((fn (file-truename (buffer-file-name)))
          (erl-source-buffer (current-buffer))
          (node-name (erl-mvn-make-node-name erl-mvn-artifact-id))
          (node (make-symbol node-name))
-         (erl-popup-on-output-old erl-popup-on-output)
          (args (cons (if load-module
                          fn
                          erl-mvn-tmp-source-file)
                      (list (erl-mvn-get-erlang-compile-options
                             erl-mvn-artifact-id
                             erl-mvn-output-dir)))))
-      (setq erl-popup-on-output nil)
       (erl-mvn-prepare-compilation-current-buffer)
       (erl-spawn
         (message "Compiling %s from project %s" fn erl-mvn-artifact-id)
         (erl-send-rpc node 'compile 'file args)
-        (erl-receive (erl-popup-on-output-old erl-mvn-output-dir erl-source-buffer node load-module fn old-kill-ring)
+        (erl-receive (erl-mvn-output-dir erl-source-buffer node load-module fn)
             ((['rex result]
               (mcase result
 
@@ -712,14 +690,11 @@ actually be loaded and is checked only for errors and warnings"
                  (cond (load-module
                         (erpc node 'erl_mvn_source_utils 'load_module
                               (list module (format "%s/%s" erl-mvn-output-dir module)))
-                        (message "Successfully loaded module %s into node %s." module node)))
-                 (setq kill-ring old-kill-ring)
-                 (setq erl-popup-on-output erl-popup-on-output-old))
+                        (message "Successfully loaded module %s into node %s." module node))))
 
                 (['error errors warnings]
                  (message "Compilation failed!")
-                 (erl-mvn-show-compilation-results errors warnings erl-source-buffer)
-                 (setq kill-ring old-kill-ring))
+                 (erl-mvn-show-compilation-results errors warnings erl-source-buffer))
 
                 (unexpected (message "Unexpected message %s" unexpected)))))))))
 
@@ -733,52 +708,38 @@ project artifact-id."
 
 (defun erl-mvn-show-compilation-results(errors warnings mark-errors-buffer)
   "Private function. Show a buffer with formatted erlang
-compilation errorsa and warnings if erl-mvn-popup-compiler-output
+compilation errors and warnings if erl-mvn-popup-compiler-output
 is not nil."
-  (save-excursion
-    (with-current-buffer (get-buffer-create "*erl-mvn-compile-errors*")
-      (if (and erl-mvn-popup-compiler-output
-               (not (and (eq errors '()) (eq warnings '()))))
-          (save-selected-window
-            (select-window (or (get-buffer-window (current-buffer))
-                               (display-buffer (current-buffer))))))
+  (erl-mvn-with-buffer "*erl-mvn-compile-errors*"
       (fundamental-mode)
-      (setq buffer-read-only nil)
-      (kill-region (point-min) (point-max))
       (insert "Errors:\n=======\n")
       (erl-mvn-format-compiler-errors errors)
       (insert "\n\nWarnings:\n=========\n")
       (erl-mvn-format-compiler-warnings warnings)
       (compilation-mode)
       (let ((error-lines (erl-mvn-extract-linenumbers (append errors warnings))))
-        (erl-mvn-mark-warnings error-lines mark-errors-buffer)))))
+        (erl-mvn-mark-warnings error-lines mark-errors-buffer))))
 
 (defun erl-mvn-show-eunit-results(results mark-buffer)
   "Private function. Show the results of an eunit run."
   (let ((base-dir
          (with-current-buffer mark-buffer
            (file-name-directory buffer-file-name))))
-    (save-excursion
-      (with-current-buffer (get-buffer-create "*erl-mvn-eunit-results*")
-        (if erl-mvn-popup-eunit-output
-            (save-selected-window
-              (select-window (or (get-buffer-window (current-buffer))
-                                 (display-buffer (current-buffer))))))
-        (fundamental-mode)
-        (setq buffer-read-only nil)
-        (kill-region (point-min) (point-max))
-        (mapcar
-         (lambda (r)
-           (mcase r
-             (['error function line reason]
+    (erl-mvn-with-buffer
+     "*erl-mvn-eunit-results*"
+     (fundamental-mode)
+     (mapcar
+      (lambda (r)
+        (mcase r
+          (['error function line reason]
               (insert (concat base-dir reason))
               line)
 
-             (['ok function line]
-              line)))
-         results)
-        (compilation-mode)
-        (erl-mvn-mark-eunit-results results mark-buffer)))))
+          (['ok function line]
+           line)))
+      results)
+     (compilation-mode)
+     (erl-mvn-mark-eunit-results results mark-buffer))))
 
 (defun erl-mvn-format-compiler-errors(msgs)
   "Private function that formats a list of compiler errors as
@@ -895,6 +856,24 @@ color to green or red of the line or function header of each test."
                     (overlay-put ov 'help-echo reason)))))))
        lines))))
 
+(defmacro erl-mvn-with-buffer(buffer-name &rest body)
+  "Save excursion and enter or create an erl-mvn buffer, empty
+it, execute the rest in it and set it to read only
+afterwards. Also disable undo, because tracing buffers tend to
+get large."
+  (let ((body-ret-val (make-symbol "body-ret-val")))
+  `(save-excursion
+     (with-current-buffer (get-buffer-create ,buffer-name)
+       (setq buffer-read-only nil)
+       (buffer-disable-undo)
+       (delete-region (point-min) (point-max))
+       (save-selected-window
+         (select-window (or (get-buffer-window (current-buffer))
+                            (display-buffer (current-buffer)))))
+       (let ((,body-ret-val (progn ,@body)))
+         (setq buffer-read-only 't)
+         ,body-ret-val)))))
+
 (defun erl-mvn-lists-join(lists)
   "Private function. Joins a list of lists to a list: ((a b
 c) (d) (e f)) --> (a b c d e f)."
@@ -907,7 +886,6 @@ c) (d) (e f)) --> (a b c d e f)."
         l))
      lists)
     res))
-
 
 (defun erl-mvn-make-buffer-name(str)
   "Private function. Converts a string to a good process buffer name."
